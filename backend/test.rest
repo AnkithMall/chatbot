@@ -1,0 +1,54 @@
+POST http://127.0.0.1:5000/create_assistant
+Content-Type: application/json
+
+{
+    "name":"test-assistant",
+    "instruction":"You are a debt specialist. You will ask the following details to the customer: Name, SSN, DOB. You have to ask these details sequentially, one at a time.also you need to initiate the chat",
+    "model":"gpt-4o"
+}
+
+###
+
+POST http://127.0.0.1:5000/create_thread
+Content-Type: application/json
+
+{
+
+}
+
+###
+
+POST http://127.0.0.1:5000/chat
+Content-Type: application/json
+
+{
+    "thread_id":"thread_7rFcQSls5TFmJkHUYikU02qG",
+    "message":""
+}
+
+###
+GET https://api.openai.com/v1/threads/thread_7rFcQSls5TFmJkHUYikU02qG/runs/run_1299daPvBmSm36OyOuHejpYo
+Authorization: Bearer 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
+OpenAI-Beta: assistants=v2
+
+###
+
+POST http://127.0.0.1:5000/chat
+Content-Type: application/json
+
+{
+    "thread_id":"thread_8XsCoJ0tEu7x54Q2X4Jwaear",
+    "message":"retry the tool call it failed earlier"
+}
+
+###
+get https://api.openai.com/v1/threads/thread_8XsCoJ0tEu7x54Q2X4Jwaear/runs
+Authorization: Bearer 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
+OpenAI-Beta: assistants=v2
+
+###
+post https://api.openai.com/v1/threads/thread_8XsCoJ0tEu7x54Q2X4Jwaear/runs/run_ZNM3YWAtjjgg42uJDmaHQtii/cancel
+Authorization: Bearer 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
+OpenAI-Beta: assistants=v2
+
+
