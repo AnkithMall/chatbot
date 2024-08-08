@@ -28,7 +28,7 @@ Content-Type: application/json
 
 ###
 GET https://api.openai.com/v1/threads/thread_7rFcQSls5TFmJkHUYikU02qG/runs/run_1299daPvBmSm36OyOuHejpYo
-Authorization: Bearer 
+Authorization: Bearer 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
 OpenAI-Beta: assistants=v2
 
 ###
@@ -43,12 +43,12 @@ Content-Type: application/json
 
 ###
 get https://api.openai.com/v1/threads/thread_8XsCoJ0tEu7x54Q2X4Jwaear/runs
-Authorization: Bearer 
+Authorization: Bearer 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
 OpenAI-Beta: assistants=v2
 
 ###
 post https://api.openai.com/v1/threads/thread_8XsCoJ0tEu7x54Q2X4Jwaear/runs/run_ZNM3YWAtjjgg42uJDmaHQtii/cancel
-Authorization: Bearer 
+Authorization: Bearer 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
 OpenAI-Beta: assistants=v2
 
 ###
