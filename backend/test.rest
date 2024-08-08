@@ -51,4 +51,7 @@ post https://api.openai.com/v1/threads/thread_8XsCoJ0tEu7x54Q2X4Jwaear/runs/run_
 Authorization: Bearer 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
 OpenAI-Beta: assistants=v2
 
+###
+get http://127.0.0.1:5000/chatbots
+
 
