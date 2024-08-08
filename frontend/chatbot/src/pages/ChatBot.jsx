@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
     Button,
     Modal,
@@ -9,6 +9,7 @@ import {
     ListItem,
     ListItemText,
     IconButton,
+    CircularProgress,
 } from "@mui/material";
 import { Add, Remove } from "@mui/icons-material";
 import axios from "axios";
@@ -31,36 +32,23 @@ export const ChatBot = () => {
     const [modalOpen, setModalOpen] = useState(false);
     const [chatbots, setChatbots] = useState([]);
     const [selectedChatbot, setSelectedChatbot] = useState(null);
-    const [chatbotDetails, setChatbotDetails] = useState({
-        name: "",
-        instructions: "",
-        model: "gpt-4o",
-        tools: [
-            {
-                function: {
-                    description: "",
-                    name: "",
-                    parameters: {
-                        properties: {},
-                        required: [],
-                        type: "object",
-                    },
-                },
-                type: "function",
-            },
-        ],
-    });
+    const [chatbotDetails, setChatbotDetails] = useState(null); // For selected chatbot details, now editable
+    const [modalFormData, setModalFormData] = useState(getInitialChatbotDetails()); // Separate state for modal form
     const [threadId, setThreadId] = useState(null);
     const [chatMessages, setChatMessages] = useState([]);
     const [message, setMessage] = useState("");
+    const [loading, setLoading] = useState(false);
 
     useEffect(() => {
         const fetchChatbots = async () => {
+            setLoading(true);
             try {
                 const response = await axios.get("http://127.0.0.1:5000/chatbots");
                 setChatbots(response.data);
             } catch (error) {
                 console.error("Error fetching chatbots:", error);
+            } finally {
+                setLoading(false);
             }
         };
 
@@ -68,9 +56,183 @@ export const ChatBot = () => {
     }, []);
 
     const handleOpen = () => setModalOpen(true);
-    const handleClose = () => setModalOpen(false);
+    const handleClose = () => {
+        setModalFormData(getInitialChatbotDetails()); // Reset modal form on close
+        setModalOpen(false);
+    };
 
-    const handleChange = (e) => {
+    const handleModalChange = (e) => {
+        const { name, value } = e.target;
+        setModalFormData((prevData) => ({
+            ...prevData,
+            [name]: value,
+        }));
+    };
+
+    const handleModalFunctionChange = (index, e) => {
+        const { name, value } = e.target;
+        const updatedTools = modalFormData.tools.map((tool, i) =>
+            i === index
+                ? {
+                    ...tool,
+                    function: {
+                        ...tool.function,
+                        [name]: value,
+                    },
+                }
+                : tool
+        );
+        setModalFormData((prevData) => ({
+            ...prevData,
+            tools: updatedTools,
+        }));
+    };
+
+    const handleModalArgumentChange = (funcIndex, argName, e) => {
+        const { name, value } = e.target;
+        const updatedTools = modalFormData.tools.map((tool, i) =>
+            i === funcIndex
+                ? {
+                    ...tool,
+                    function: {
+                        ...tool.function,
+                        parameters: {
+                            ...tool.function.parameters,
+                            properties: {
+                                ...tool.function.parameters.properties,
+                                [argName]: {
+                                    ...tool.function.parameters.properties[argName],
+                                    [name]: value,
+                                },
+                            },
+                        },
+                    },
+                }
+                : tool
+        );
+        setModalFormData((prevData) => ({
+            ...prevData,
+            tools: updatedTools,
+        }));
+    };
+
+    const handleAddArgumentToModal = (funcIndex) => {
+        const newArgName = prompt("Enter new argument name:");
+        if (!newArgName) return;
+        const updatedTools = modalFormData.tools.map((tool, i) =>
+            i === funcIndex
+                ? {
+                    ...tool,
+                    function: {
+                        ...tool.function,
+                        parameters: {
+                            ...tool.function.parameters,
+                            properties: {
+                                ...tool.function.parameters.properties,
+                                [newArgName]: { description: "", type: "string" },
+                            },
+                            required: [...tool.function.parameters.required, newArgName],
+                        },
+                    },
+                }
+                : tool
+        );
+        setModalFormData((prevData) => ({
+            ...prevData,
+            tools: updatedTools,
+        }));
+    };
+
+    const handleRemoveArgumentFromModal = (funcIndex, argName) => {
+        const updatedTools = modalFormData.tools.map((tool, i) =>
+            i === funcIndex
+                ? {
+                    ...tool,
+                    function: {
+                        ...tool.function,
+                        parameters: {
+                            ...tool.function.parameters,
+                            properties: Object.fromEntries(
+                                Object.entries(tool.function.parameters.properties).filter(
+                                    ([key]) => key !== argName
+                                )
+                            ),
+                            required: tool.function.parameters.required.filter(
+                                (name) => name !== argName
+                            ),
+                        },
+                    },
+                }
+                : tool
+        );
+        setModalFormData((prevData) => ({
+            ...prevData,
+            tools: updatedTools,
+        }));
+    };
+
+    const handleAddFunctionToModal = () => {
+        setModalFormData((prevData) => ({
+            ...prevData,
+            tools: [
+                ...prevData.tools,
+                {
+                    function: {
+                        description: "",
+                        name: "",
+                        parameters: {
+                            properties: {},
+                            required: [],
+                            type: "object",
+                        },
+                    },
+                    type: "function",
+                },
+            ],
+        }));
+    };
+
+    const handleRemoveFunctionFromModal = (index) => {
+        const updatedTools = modalFormData.tools.filter((_, i) => i !== index);
+        setModalFormData((prevData) => ({
+            ...prevData,
+            tools: updatedTools,
+        }));
+    };
+
+    const handleCreateChatbot = async () => {
+        setLoading(true);
+        try {
+            const response = await axios.post("http://127.0.0.1:5000/create_assistant", {
+                name: modalFormData.name,
+                instruction: modalFormData.instructions,
+                model: modalFormData.model,
+                tools: modalFormData.tools,
+            });
+            const newChatbot = {
+                id: response.data.assistant_id,
+                ...modalFormData,
+            };
+            setChatbots((prevChatbots) => [...prevChatbots, newChatbot]);
+            setModalFormData(getInitialChatbotDetails()); // Reset the modal form
+            handleClose(); // Close the modal after creating a chatbot
+        } catch (error) {
+            console.error("Error creating chatbot:", error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleSelectChatbot = (chatbot) => {
+        setThreadId(null);
+        setSelectedChatbot(chatbot);
+        setChatbotDetails(chatbot);
+        createThread(chatbot.id);
+        setChatMessages([]); // Clear chat messages
+        setMessage(""); 
+    };
+
+    const handleChatbotDetailsChange = (e) => {
         const { name, value } = e.target;
         setChatbotDetails((prevDetails) => ({
             ...prevDetails,
@@ -125,167 +287,48 @@ export const ChatBot = () => {
         }));
     };
 
-    const handleAddArgument = (funcIndex) => {
-        const newArgName = prompt("Enter new argument name:");
-        if (!newArgName) return;
-        const updatedTools = chatbotDetails.tools.map((tool, i) =>
-            i === funcIndex
-                ? {
-                    ...tool,
-                    function: {
-                        ...tool.function,
-                        parameters: {
-                            ...tool.function.parameters,
-                            properties: {
-                                ...tool.function.parameters.properties,
-                                [newArgName]: { description: "", type: "string" },
-                            },
-                            required: [...tool.function.parameters.required, newArgName],
-                        },
-                    },
-                }
-                : tool
-        );
-        setChatbotDetails((prevDetails) => ({
-            ...prevDetails,
-            tools: updatedTools,
-        }));
-    };
-
-    const handleRemoveArgument = (funcIndex, argName) => {
-        const updatedTools = chatbotDetails.tools.map((tool, i) =>
-            i === funcIndex
-                ? {
-                    ...tool,
-                    function: {
-                        ...tool.function,
-                        parameters: {
-                            ...tool.function.parameters,
-                            properties: Object.fromEntries(
-                                Object.entries(tool.function.parameters.properties).filter(
-                                    ([key]) => key !== argName
-                                )
-                            ),
-                            required: tool.function.parameters.required.filter(
-                                (name) => name !== argName
-                            ),
-                        },
-                    },
-                }
-                : tool
-        );
-        setChatbotDetails((prevDetails) => ({
-            ...prevDetails,
-            tools: updatedTools,
-        }));
-    };
-
-    const handleAddFunction = () => {
-        setChatbotDetails((prevDetails) => ({
-            ...prevDetails,
-            tools: [
-                ...prevDetails.tools,
-                {
-                    function: {
-                        description: "",
-                        name: "",
-                        parameters: {
-                            properties: {},
-                            required: [],
-                            type: "object",
-                        },
-                    },
-                    type: "function",
-                },
-            ],
-        }));
-    };
-
-    const handleRemoveFunction = (index) => {
-        const updatedTools = chatbotDetails.tools.filter((_, i) => i !== index);
-        setChatbotDetails((prevDetails) => ({
-            ...prevDetails,
-            tools: updatedTools,
-        }));
-    };
-
-    const handleCreateChatbot = async () => {
+    const createThread = useCallback(async (assistantId) => {
         try {
-            console.log(chatbotDetails);
-            const response = await axios.post("http://127.0.0.1:5000/create_assistant", {
-                name: chatbotDetails.name,
-                instruction: chatbotDetails.instructions,
-                model: chatbotDetails.model,
-                tools: chatbotDetails.tools,
-            });
-            const newChatbot = {
-                id: response.data.assistant_id,
-                ...chatbotDetails,
-            };
-            setChatbots((prevChatbots) => [...prevChatbots, newChatbot]);
-            setChatbotDetails({
-                name: "",
-                instructions: "",
-                model: "gpt-4o",
-                tools: [
-                    {
-                        function: {
-                            description: "",
-                            name: "",
-                            parameters: {
-                                properties: {},
-                                required: [],
-                                type: "object",
-                            },
-                        },
-                        type: "function",
-                    },
-                ],
-            });
-            handleClose();
-        } catch (error) {
-            console.error("Error creating chatbot:", error);
-        }
-    };
-
-    const handleSelectChatbot = (chatbot) => {
-        setSelectedChatbot(chatbot);
-        setChatbotDetails(chatbot);
-        createThread(chatbot.id);
-    };
-
-    const createThread = async (assistantId) => {
-        try {
-            const response = await axios.post("/create_thread");
+            const response = await axios.post("http://127.0.0.1:5000/create_thread");
             setThreadId(response.data.thread_id);
         } catch (error) {
             console.error("Error creating thread:", error);
         }
-    };
+    }, []);
 
     const handleSendMessage = async () => {
-        if (!threadId || !message) return;
+        console.log(threadId,message);
+        if (!threadId || !message.trim()) return;
         try {
-            await axios.post("/chat", {
+            await axios.post("http://127.0.0.1:5000/chat", {
                 thread_id: threadId,
                 message,
             });
-            setChatMessages((prevMessages) => [...prevMessages, { role: "user", content: message }]);
+            setChatMessages((prevMessages) => [
+                ...prevMessages,
+                { role: "user", content: message }
+            ]);
             setMessage("");
-            fetchMessages();
+            fetchMessages(); // Fetch messages after sending a new one
         } catch (error) {
             console.error("Error sending message:", error);
         }
     };
 
-    const fetchMessages = async () => {
+    const fetchMessages = useCallback(async () => {
+        console.log("thread id => ",threadId);
+        if (!threadId) return;
         try {
-            const response = await axios.get(`/threads/${threadId}/messages`);
-            setChatMessages(response.data.messages);
+            const response = await axios.get(`http://127.0.0.1:5000/threads/${threadId}/messages`);
+            const messages = response.data.messages.map(msg => ({
+                role: msg.role,
+                content: msg.content.map(part => part.text.value).join(' ')
+            }));
+            setChatMessages(messages);
         } catch (error) {
             console.error("Error fetching messages:", error);
         }
-    };
+    }, [threadId]);
 
     return (
         <div style={{ display: "flex", height: "100vh" }}>
@@ -294,45 +337,49 @@ export const ChatBot = () => {
                 <Button variant="contained" onClick={handleOpen}>
                     Create Chatbot
                 </Button>
-                <List>
-                    {chatbots.length > 0 ? chatbots.map((chatbot) => (
-                        <ListItem button key={chatbot.id} onClick={() => handleSelectChatbot(chatbot)}>
-                            <ListItemText primary={chatbot.name} secondary={`ID: ${chatbot.id}`} />
-                        </ListItem>
-                    )) : <>Loading</>}
-                </List>
+                {loading ? (
+                    <CircularProgress />
+                ) : (
+                    <List>
+                        {chatbots.length > 0 ? chatbots.map((chatbot) => (
+                            <ListItem button key={chatbot.id} onClick={() => handleSelectChatbot(chatbot)}>
+                                <ListItemText primary={chatbot.name} secondary={`ID: ${chatbot.id}`} />
+                            </ListItem>
+                        )) : <Typography>No chatbots available</Typography>}
+                    </List>
+                )}
             </aside>
 
             <div style={{ display: "flex", width: "75%", padding: "20px" }}>
                 {/* Chatbot Details */}
-                <div style={{ width: "50%", paddingRight: "10px", borderRight: "1px solid #ccc" }}>
+                <div style={{ width: "50%", paddingRight: "10px", borderRight: "1px solid #ccc" ,height: "100vh", overflowY: "scroll" }}>
                     {selectedChatbot ? (
                         <div>
                             <TextField
                                 label="Chatbot Name"
                                 name="name"
-                                value={chatbotDetails.name}
-                                onChange={handleChange}
+                                value={chatbotDetails?.name || ""}
+                                onChange={handleChatbotDetailsChange}
                                 fullWidth
                                 margin="normal"
                             />
                             <TextField
                                 label="Instructions"
                                 name="instructions"
-                                value={chatbotDetails.instructions}
-                                onChange={handleChange}
+                                value={chatbotDetails?.instructions || ""}
+                                onChange={handleChatbotDetailsChange}
                                 fullWidth
                                 margin="normal"
                             />
                             <TextField
                                 label="Model"
                                 name="model"
-                                value={chatbotDetails.model}
-                                onChange={handleChange}
+                                value={chatbotDetails?.model || ""}
+                                onChange={handleChatbotDetailsChange}
                                 fullWidth
                                 margin="normal"
                             />
-                            {chatbotDetails.tools.map((func, funcIndex) => (
+                            {chatbotDetails?.tools.map((func, funcIndex) => (
                                 <div key={funcIndex} style={{ marginBottom: "20px" }}>
                                     {/* Function Name */}
                                     <TextField
@@ -363,7 +410,7 @@ export const ChatBot = () => {
                                             {/* Variable Name */}
                                             <TextField
                                                 label="Variable Name"
-                                                name="name"
+                                                name={argName}
                                                 value={argName}
                                                 onChange={(e) => handleArgumentChange(funcIndex, argName, e)}
                                                 fullWidth
@@ -379,40 +426,18 @@ export const ChatBot = () => {
                                                 fullWidth
                                                 margin="normal"
                                             />
-
-                                            {/* Remove Argument Button */}
-                                            <IconButton onClick={() => handleRemoveArgument(funcIndex, argName)}>
-                                                <Remove />
-                                            </IconButton>
                                         </div>
                                     ))}
-
-                                    {/* Add Argument Button */}
-                                    <Button
-                                        variant="contained"
-                                        onClick={() => handleAddArgument(funcIndex)}
-                                        style={{ marginTop: "10px" }}
-                                    >
-                                        Add Variable
-                                    </Button>
-
-                                    {/* Remove Function Button */}
-                                    <IconButton onClick={() => handleRemoveFunction(funcIndex)}>
-                                        <Remove />
-                                    </IconButton>
                                 </div>
                             ))}
-
-                            <Button variant="contained" onClick={handleAddFunction} style={{ marginTop: "20px" }}>
-                                Add Function
-                            </Button>
                             <Button
                                 variant="contained"
                                 color="primary"
-                                style={{ marginTop: "20px", marginBottom: "20px" }}
-                                onClick={handleCreateChatbot}
+                                style={{ marginTop: "20px" }}
+                                onClick={handleCreateChatbot} // Hook this to update logic when ready
+                                disabled={loading}
                             >
-                                Publish
+                                {loading ? "Publishing..." : "Publish"}
                             </Button>
                         </div>
                     ) : (
@@ -421,9 +446,9 @@ export const ChatBot = () => {
                 </div>
 
                 {/* Chat Section */}
-                <div style={{ width: "50%", paddingLeft: "10px", display: "flex", flexDirection: "column" }}>
+                <div style={{ width: "50%", paddingLeft: "10px", display: "flex", flexDirection: "column",height: "100vh", overflowY: "scroll"  }}>
                     <div style={{ flex: 1, overflowY: "auto", border: "1px solid #ccc", padding: "10px" }}>
-                        {chatMessages.map((msg, index) => (
+                        {[...chatMessages].reverse().map((msg, index) => (
                             <div key={index} style={{ textAlign: msg.role === "user" ? "right" : "left" }}>
                                 <Typography
                                     variant="body1"
@@ -439,6 +464,7 @@ export const ChatBot = () => {
                             </div>
                         ))}
                     </div>
+
                     <div style={{ display: "flex", marginTop: "10px" }}>
                         <TextField
                             fullWidth
@@ -467,35 +493,35 @@ export const ChatBot = () => {
                     <TextField
                         label="Chatbot Name"
                         name="name"
-                        value={chatbotDetails.name}
-                        onChange={handleChange}
+                        value={modalFormData.name}
+                        onChange={handleModalChange}
                         fullWidth
                         margin="normal"
                     />
                     <TextField
                         label="Instructions"
                         name="instructions"
-                        value={chatbotDetails.instructions}
-                        onChange={handleChange}
+                        value={modalFormData.instructions}
+                        onChange={handleModalChange}
                         fullWidth
                         margin="normal"
                     />
                     <TextField
                         label="Model"
                         name="model"
-                        value={chatbotDetails.model}
-                        onChange={handleChange}
+                        value={modalFormData.model}
+                        onChange={handleModalChange}
                         fullWidth
                         margin="normal"
                     />
-                    {chatbotDetails.tools.map((func, funcIndex) => (
+                    {modalFormData.tools.map((func, funcIndex) => (
                         <div key={funcIndex} style={{ marginBottom: "20px" }}>
                             {/* Function Name */}
                             <TextField
                                 label="Function Name"
                                 name="name"
                                 value={func.function.name}
-                                onChange={(e) => handleFunctionChange(funcIndex, e)}
+                                onChange={(e) => handleModalFunctionChange(funcIndex, e)}
                                 fullWidth
                                 margin="normal"
                             />
@@ -505,7 +531,7 @@ export const ChatBot = () => {
                                 label="Function Description"
                                 name="description"
                                 value={func.function.description}
-                                onChange={(e) => handleFunctionChange(funcIndex, e)}
+                                onChange={(e) => handleModalFunctionChange(funcIndex, e)}
                                 fullWidth
                                 margin="normal"
                             />
@@ -519,9 +545,9 @@ export const ChatBot = () => {
                                     {/* Variable Name */}
                                     <TextField
                                         label="Variable Name"
-                                        name="name"
+                                        name={argName}
                                         value={argName}
-                                        onChange={(e) => handleArgumentChange(funcIndex, argName, e)}
+                                        onChange={(e) => handleModalArgumentChange(funcIndex, argName, e)}
                                         fullWidth
                                         margin="normal"
                                     />
@@ -531,13 +557,13 @@ export const ChatBot = () => {
                                         label="Variable Description"
                                         name="description"
                                         value={argDetails.description}
-                                        onChange={(e) => handleArgumentChange(funcIndex, argName, e)}
+                                        onChange={(e) => handleModalArgumentChange(funcIndex, argName, e)}
                                         fullWidth
                                         margin="normal"
                                     />
 
                                     {/* Remove Argument Button */}
-                                    <IconButton onClick={() => handleRemoveArgument(funcIndex, argName)}>
+                                    <IconButton onClick={() => handleRemoveArgumentFromModal(funcIndex, argName)}>
                                         <Remove />
                                     </IconButton>
                                 </div>
@@ -546,31 +572,53 @@ export const ChatBot = () => {
                             {/* Add Argument Button */}
                             <Button
                                 variant="contained"
-                                onClick={() => handleAddArgument(funcIndex)}
+                                onClick={() => handleAddArgumentToModal(funcIndex)}
                                 style={{ marginTop: "10px" }}
                             >
                                 Add Variable
                             </Button>
 
                             {/* Remove Function Button */}
-                            <IconButton onClick={() => handleRemoveFunction(funcIndex)}>
+                            <IconButton onClick={() => handleRemoveFunctionFromModal(funcIndex)}>
                                 <Remove />
                             </IconButton>
                         </div>
                     ))}
 
-                    <Button variant="contained" onClick={handleAddFunction} style={{ marginTop: "20px" }}>
+                    <Button variant="contained" onClick={handleAddFunctionToModal} style={{ marginTop: "20px" }}>
                         Add Function
                     </Button>
                     <Button
                         variant="contained"
                         onClick={handleCreateChatbot}
                         style={{ marginTop: "20px" }}
+                        disabled={loading}
                     >
-                        Create ChatBot
+                        {loading ? "Creating..." : "Create ChatBot"}
                     </Button>
                 </Box>
             </Modal>
         </div>
     );
 };
+
+// Helper function for initial state
+const getInitialChatbotDetails = () => ({
+    name: "",
+    instructions: "",
+    model: "gpt-4o",
+    tools: [
+        {
+            type: "function",
+            function: {
+                description: "",
+                name: "",
+                parameters: {
+                    properties: {},
+                    required: [],
+                    type: "object",
+                },
+            },
+        },
+    ],
+});

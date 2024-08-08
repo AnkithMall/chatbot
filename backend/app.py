@@ -15,7 +15,9 @@ default_asst = "asst_fN72dShbo6g7z5okrGfO5eDB"
 
 @app.route('/create_thread', methods=['POST'])
 def create_thread():
-    return client.beta.threads.create().id
+    #return client.beta.threads.create().id
+    thread_id = client.beta.threads.create().id
+    return jsonify({"thread_id": thread_id}), 201
 
 @app.route('/create_assistant', methods=['POST'])
 def create_assistant():
@@ -57,6 +59,19 @@ def chatbots():
     asst_list = client.beta.assistants.list()
     asst_list_dict = object_to_dict(asst_list.data)
     return jsonify(asst_list_dict),200
+
+@app.route('/threads/<thread_id>/messages', methods=['GET'])
+def get_messages(thread_id):
+    if not thread_id:
+        return jsonify({"error": "Invalid thread ID"}), 400
+
+    print(f"theead => {thread_id}\n")
+    # Fetch messages from the thread using your chat client or database
+    messages = object_to_dict(client.beta.threads.messages.list(thread_id).data)
+    print(messages)
+    return jsonify({"messages": messages}), 200
+
+
 
 if __name__ == '__main__':
     app.run(debug=True)

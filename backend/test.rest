@@ -47,11 +47,12 @@ Authorization: Bearer
 OpenAI-Beta: assistants=v2
 
 ###
-post https://api.openai.com/v1/threads/thread_8XsCoJ0tEu7x54Q2X4Jwaear/runs/run_ZNM3YWAtjjgg42uJDmaHQtii/cancel
+get https://api.openai.com/v1/threads/thread_8XsCoJ0tEu7x54Q2X4Jwaear/messages
 Authorization: Bearer 
 OpenAI-Beta: assistants=v2
 
 ###
-get http://127.0.0.1:5000/chatbots
+get http://127.0.0.1:5000/threads/thread_8XsCoJ0tEu7x54Q2X4Jwaear/messages
+Content-Type: application/json
 
 
