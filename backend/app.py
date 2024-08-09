@@ -1,6 +1,6 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-from helper_function import create_assistant_helper, create_message, run_thread, wait_for_run_completion, object_to_dict
+from helper_function import create_assistant_helper, create_message, run_thread, wait_for_run_completion, object_to_dict,update_assistant_helper
 import openai
 import os
 from dotenv import load_dotenv
@@ -70,6 +70,29 @@ def get_messages(thread_id):
     messages = object_to_dict(client.beta.threads.messages.list(thread_id).data)
     print(messages)
     return jsonify({"messages": messages}), 200
+
+@app.route('/update_assistant', methods=['POST'])
+def update_assistant():
+    data = request.json
+    if not data:
+        return jsonify({"error": "Invalid request"}), 400
+
+    print(data)
+
+    # Extract message details from the request body, with defaults to None
+    asst_id = data.get("asst_id")
+    asst_name = data.get("name")
+    instruction = data.get("instruction")
+    asst_model = data.get("model")
+    asst_func = data.get("tools")
+
+    # Call the helper function with the extracted or defaulted parameters
+    try:
+        assistant_id = update_assistant_helper(asst_name, instruction, asst_model, asst_func, asst_id)
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    
+    return jsonify({"assistant_id": assistant_id}), 200
 
 
 

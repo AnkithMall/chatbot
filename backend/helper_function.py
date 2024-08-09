@@ -64,6 +64,27 @@ def create_assistant_helper(name, instruction, model, functions):
     
     #print(chatbot_assis)
     return chatbot_assis.id
+def update_assistant_helper(name=None, instruction=None, model=None, functions=None, asst_id=None):
+    # Ensure that the assistant ID is provided
+    if not asst_id:
+        raise ValueError("Assistant ID is required")
+    
+    # Create a dictionary of the parameters
+    update_params = {
+        "assistant_id": asst_id,
+        "name": name,
+        "instructions": instruction,
+        "model": model,
+        "tools": functions
+    }
+    
+    # Filter out any parameters that are None
+    update_params = {key: value for key, value in update_params.items() if value is not None}
+    
+    # Update the assistant with the filtered parameters
+    chatbot_assis = client.beta.assistants.update(**update_params)
+    
+    return chatbot_assis.id
 
 def create_message(message, thread_id):
     return client.beta.threads.messages.create(

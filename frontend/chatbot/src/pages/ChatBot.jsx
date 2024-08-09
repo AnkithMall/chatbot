@@ -55,6 +55,38 @@ export const ChatBot = () => {
         fetchChatbots();
     }, []);
 
+    const handleUpdateChatbot = async () => {
+        if (!selectedChatbot) return;
+        
+        setLoading(true);
+        try {
+            const response = await axios.post("http://127.0.0.1:5000/update_assistant", {
+                asst_id: selectedChatbot.id,
+                name: chatbotDetails.name,
+                instruction: chatbotDetails.instructions,
+                model: chatbotDetails.model,
+                tools: chatbotDetails.tools,
+            });
+            
+            const updatedChatbot = {
+                id: response.data.assistant_id,
+                ...chatbotDetails,
+            };
+            
+            setChatbots((prevChatbots) =>
+                prevChatbots.map((bot) => bot.id === updatedChatbot.id ? updatedChatbot : bot)
+            );
+            
+            // Optionally reset any unsaved changes if needed
+            setChatbotDetails(updatedChatbot);
+        } catch (error) {
+            console.error("Error updating chatbot:", error);
+        } finally {
+            setLoading(false);
+        }
+    };
+    
+
     const handleOpen = () => setModalOpen(true);
     const handleClose = () => {
         setModalFormData(getInitialChatbotDetails()); // Reset modal form on close
@@ -434,7 +466,7 @@ export const ChatBot = () => {
                                 variant="contained"
                                 color="primary"
                                 style={{ marginTop: "20px" }}
-                                onClick={handleCreateChatbot} // Hook this to update logic when ready
+                                onClick={handleUpdateChatbot} // Hook this to update logic when ready
                                 disabled={loading}
                             >
                                 {loading ? "Publishing..." : "Publish"}

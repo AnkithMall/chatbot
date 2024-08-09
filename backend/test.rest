@@ -55,4 +55,15 @@ OpenAI-Beta: assistants=v2
 get http://127.0.0.1:5000/threads/thread_8XsCoJ0tEu7x54Q2X4Jwaear/messages
 Content-Type: application/json
 
+###
+POST http://127.0.0.1:5000/update_assistant
+Content-Type: application/json
+
+{
+    "asst_id":"asst_wIShH4GC8Fi0QClxmIij447J",
+    "name":"test-assistant-7",
+    "instruction":"You are a debt specialist. You will ask the following details to the customer: Name, SSN, DOB. You have to ask these details sequentially, one at a time.also you need to initiate the chat",
+    "model":"gpt-4o"
+}
+
 
