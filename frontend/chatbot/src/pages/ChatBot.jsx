@@ -291,8 +291,9 @@ export const ChatBot = () => {
         }));
     };
 
-    const handleArgumentChange = (funcIndex, argName, e) => {
-        const { name, value } = e.target;
+    const handleArgumentChange = (funcIndex, oldArgName, e) => {
+        const { value } = e.target;  // The new argument name entered by the user
+    
         const updatedTools = chatbotDetails.tools.map((tool, i) =>
             i === funcIndex
                 ? {
@@ -301,23 +302,31 @@ export const ChatBot = () => {
                         ...tool.function,
                         parameters: {
                             ...tool.function.parameters,
+                            // Update the `properties` object with the new key name
                             properties: {
-                                ...tool.function.parameters.properties,
-                                [argName]: {
-                                    ...tool.function.parameters.properties[argName],
-                                    [name]: value,
-                                },
+                                ...Object.fromEntries(
+                                    Object.entries(tool.function.parameters.properties).map(([key, val]) =>
+                                        key === oldArgName ? [value, val] : [key, val]
+                                    )
+                                ),
                             },
+                            // Update the `required` array with the new key name
+                            required: tool.function.parameters.required.map((req) =>
+                                req === oldArgName ? value : req
+                            ),
                         },
                     },
                 }
                 : tool
         );
+    
+        // Update the chatbotDetails state with the new changes
         setChatbotDetails((prevDetails) => ({
             ...prevDetails,
             tools: updatedTools,
         }));
     };
+    
 
     const createThread = useCallback(async (assistantId) => {
         try {
