@@ -4,6 +4,8 @@ import requests
 import time
 import os
 from dotenv import load_dotenv
+from db_helper import get_tool,add_tool
+import copy
 
 load_dotenv()
 
@@ -51,25 +53,42 @@ def format_functions(functions):
     return formatted_functions
 
 def create_assistant_helper(name, instruction, model, functions):
-    #print(f"functions => {functions}")
-    #formatted_functions = format_functions(functions)
-    #print(f"formatted functions => {formatted_functions}")
-    
+    print(f"incoming functions => {functions}")
+    tools = copy.deepcopy(functions)
+    for item in functions:
+        if 'function' in item and 'url' in item['function']:
+            del item['function']['url']
+    print(f"\n\nFunctions => {functions}\n\n")
     chatbot_assis = client.beta.assistants.create(
         name=name,
         instructions=instruction,
         model=model,
         tools=functions
     )
+    print(f"assistant created => {tools}")
+    # Save functions and URLs to MongoDB
+    for function in tools:
+        print(f"function inside tool = > {function}")
+        tool_data = {
+            "asst_id": chatbot_assis.id,
+            "tools": {
+                "name": function['function']['name'],
+                "description": function['function']['description'],
+                "parameters": function['function']['parameters'],
+                "url": function['function'].get('url', '')
+            }
+        }
+        print(add_tool(tool_data))  # Save each function in MongoDB
     
-    #print(chatbot_assis)
     return chatbot_assis.id
+
 def update_assistant_helper(name=None, instruction=None, model=None, functions=None, asst_id=None):
-    # Ensure that the assistant ID is provided
     if not asst_id:
         raise ValueError("Assistant ID is required")
-    
-    # Create a dictionary of the parameters
+    tools = copy.deepcopy(functions)
+    for item in functions:
+        if 'function' in item and 'url' in item['function']:
+            del item['function']['url']
     update_params = {
         "assistant_id": asst_id,
         "name": name,
@@ -78,13 +97,25 @@ def update_assistant_helper(name=None, instruction=None, model=None, functions=N
         "tools": functions
     }
     
-    # Filter out any parameters that are None
     update_params = {key: value for key, value in update_params.items() if value is not None}
     
-    # Update the assistant with the filtered parameters
     chatbot_assis = client.beta.assistants.update(**update_params)
     
+    # Update functions and URLs in MongoDB
+    for function in tools:
+        tool_data = {
+            "asst_id": chatbot_assis.id,
+            "tools": {
+                "name": function['function']['name'],
+                "description": function['function']['description'],
+                "parameters": function['function']['parameters'],
+                "url": function['function'].get('url', '')
+            }
+        }
+        add_tool(tool_data)  # Update each function in MongoDB
+    
     return chatbot_assis.id
+
 
 def create_message(message, thread_id):
     return client.beta.threads.messages.create(
@@ -106,24 +137,27 @@ def call_required_functions(run, required_actions):
         action = required_actions_dict['submit_tool_outputs']
         for tool_call in action['tool_calls']:
             func_name = tool_call['function']['name']
-            print(f"function name => {func_name}")
+            #print(f"function name => {func_name}")
 
             arguments = json.loads(tool_call['function']['arguments'])
             print(f"function_name={func_name}\narguments={arguments}")
             output = {}
-            if func_name == "lead_details":
+
+            # Retrieve the tool data, including the URL, from MongoDB
+            tool_data = get_tool(run.assistant_id,func_name)
+            print(f"tool data => {tool_data}\n arhuments => {arguments}\nrun => {run}\nassistant id => {run.assistant_id}")
+            if tool_data["success"]:
+                url = tool_data["tool"]["tools"]["url"]
                 try:
-                    url = "https://hook.eu2.make.com/it0fo3coyesfvpw99supz4n03c1vjsp1"
                     response = requests.post(url, json=arguments)
                     if response.status_code == 200:
                         output = response.json()
                         print(f"Output => {output}")
                 except requests.exceptions.RequestException as e:
                     print("Error tool Call !", e)
-
                 tools_output.append({"tool_call_id": tool_call['id'], "output": output.get("message", "")})
             else:
-                raise ValueError(f"Unknown Function {func_name}")
+                raise ValueError(f"Unknown Function {func_name} or URL not found")
 
     return client.beta.threads.runs.submit_tool_outputs(
         thread_id=run.thread_id,

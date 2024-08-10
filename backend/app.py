@@ -25,16 +25,34 @@ def create_assistant():
     if not data:
         return jsonify({"error": "Invalid request"}), 400
 
-    print(data)
-
-    # Extract message details from the request body
     asst_name = data["name"]
     instruction = data["instruction"]
     asst_model = data["model"]
-    asst_func = data["tools"]
+    asst_func = data["tools"]  # Should now include URL for each function
+    
     assistant_id = create_assistant_helper(asst_name, instruction, asst_model, asst_func)
     
     return jsonify({"assistant_id": assistant_id}), 201
+
+@app.route('/update_assistant', methods=['POST'])
+def update_assistant():
+    data = request.json
+    if not data:
+        return jsonify({"error": "Invalid request"}), 400
+
+    asst_id = data.get("asst_id")
+    asst_name = data.get("name")
+    instruction = data.get("instruction")
+    asst_model = data.get("model")
+    asst_func = data.get("tools")  # Should now include URL for each function
+
+    try:
+        assistant_id = update_assistant_helper(asst_name, instruction, asst_model, asst_func, asst_id)
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    
+    return jsonify({"assistant_id": assistant_id}), 200
+
 
 @app.route('/chat', methods=['POST'])
 def chat():
@@ -44,13 +62,13 @@ def chat():
 
     thread_id = data.get("thread_id")
     message = data.get("message")
-
+    asst_id = data.get("asst_id")
     if not thread_id or not message:
         return jsonify({"error": "Invalid request body"}), 400
 
     # Interact with OpenAI's API
     msg = create_message(message, thread_id)
-    run_detail = run_thread(thread_id, default_asst)
+    run_detail = run_thread(thread_id, asst_id)
     wait_for_run_completion(thread_id, run_detail.id)
     return {"run_id": run_detail.id}, 200
 
@@ -71,28 +89,65 @@ def get_messages(thread_id):
     print(messages)
     return jsonify({"messages": messages}), 200
 
-@app.route('/update_assistant', methods=['POST'])
-def update_assistant():
-    data = request.json
-    if not data:
-        return jsonify({"error": "Invalid request"}), 400
+@app.route('/chatbot/<assistant_id>', methods=['GET'])
+def serve_chatbot(assistant_id):
+    return f'''
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Chatbot</title>
+        <style>
+            body, html {{ margin: 0; padding: 0; height: 100%; overflow: hidden; }}
+            #chatbot-container {{
+                position: fixed;
+                bottom: 0;
+                right: 0;
+                width: 100%;
+                height: 100%;
+                border: none;
+                z-index: 1000;
+            }}
+        </style>
+    </head>
+    <body>
+        <div id="chatbot-container"></div>
+        <script>
+            (function() {{
+                var threadId = null;
+                async function createThread() {{
+                    const response = await fetch('/create_thread', {{ method: 'POST' }});
+                    const data = await response.json();
+                    threadId = data.thread_id;
+                }}
+                
+                async function sendMessage(message) {{
+                    const response = await fetch('/chat', {{
+                        method: 'POST',
+                        headers: {{ 'Content-Type': 'application/json' }},
+                        body: JSON.stringify({{
+                            thread_id: threadId,
+                            message: message,
+                            asst_id: '{assistant_id}'
+                        }})
+                    }});
+                    const result = await response.json();
+                    return result.run_id;
+                }}
 
-    print(data)
-
-    # Extract message details from the request body, with defaults to None
-    asst_id = data.get("asst_id")
-    asst_name = data.get("name")
-    instruction = data.get("instruction")
-    asst_model = data.get("model")
-    asst_func = data.get("tools")
-
-    # Call the helper function with the extracted or defaulted parameters
-    try:
-        assistant_id = update_assistant_helper(asst_name, instruction, asst_model, asst_func, asst_id)
-    except ValueError as e:
-        return jsonify({"error": str(e)}), 400
-    
-    return jsonify({"assistant_id": assistant_id}), 200
+                // Initialize the chatbot
+                createThread();
+                
+                // For demonstration purposes, automatically send a welcome message
+                setTimeout(() => {{
+                    sendMessage("Hello, how can I assist you today?");
+                }}, 1000);
+            }})();
+        </script>
+    </body>
+    </html>
+    '''
 
 
 

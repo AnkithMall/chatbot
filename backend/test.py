@@ -65,5 +65,26 @@ asst = {
                             }
             ]
         }
+
+tool = [
+            {
+                'type': 'function', 
+                'function': {
+                                'description': 'jbfrvjr', 
+                                'name': 'hbfevh', 
+                                'parameters': {
+                                                    'properties': {
+                                                                        'jnefk': {
+                                                                            'description': '', 
+                                                                            'type': 'string'
+                                                                            }
+                                                                }, 
+                                                    'required': ['jnefk'], 
+                                                    'type': 'object'
+                                            }, 
+                                'url': 'https://hook.eu2.make.com/it0fo3coyesfvpw99supz4n03c1vjsp1'
+                            }
+            }
+        ]
 asst_list = client.beta.assistants.list()
-print(asst_list.data[0].id)
+print(tool[0]['function']['url'])

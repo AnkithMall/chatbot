@@ -119,6 +119,7 @@ export const ChatBot = () => {
             tools: updatedTools,
         }));
     };
+    
 
     const handleModalArgumentChange = (funcIndex, argName, e) => {
         const { name, value } = e.target;
@@ -344,6 +345,7 @@ export const ChatBot = () => {
             await axios.post("http://127.0.0.1:5000/chat", {
                 thread_id: threadId,
                 message,
+                asst_id: selectedChatbot.id,
             });
             setChatMessages((prevMessages) => [
                 ...prevMessages,
@@ -370,6 +372,35 @@ export const ChatBot = () => {
             console.error("Error fetching messages:", error);
         }
     }, [threadId]);
+
+    const handleGenerateEmbedCode = () => {
+        if (!selectedChatbot) return;
+    
+        const embedCode = `
+        <div id="chatbot-container"></div>
+        <script>
+            (function() {
+                var chatContainer = document.getElementById('chatbot-container');
+                var chatbotFrame = document.createElement('iframe');
+                chatbotFrame.src = "http://127.0.0.1:5000/chatbot/${selectedChatbot.id}";
+                chatbotFrame.style.position = "fixed";
+                chatbotFrame.style.bottom = "0";
+                chatbotFrame.style.right = "0";
+                chatbotFrame.style.width = "350px";
+                chatbotFrame.style.height = "500px";
+                chatbotFrame.style.border = "none";
+                chatbotFrame.style.zIndex = "1000";
+                chatContainer.appendChild(chatbotFrame);
+            })();
+        </script>
+        `;
+        navigator.clipboard.writeText(embedCode).then(function() {
+            alert('Text copied to clipboard');
+          }).catch(function(error) {
+            alert('Failed to copy text: ', error);
+          });
+    };
+    
 
     return (
         <div style={{ display: "flex", height: "100vh" }}>
@@ -421,56 +452,67 @@ export const ChatBot = () => {
                                 margin="normal"
                             />
                             {chatbotDetails?.tools.map((func, funcIndex) => (
-                                <div key={funcIndex} style={{ marginBottom: "20px" }}>
-                                    {/* Function Name */}
-                                    <TextField
-                                        label="Function Name"
-                                        name="name"
-                                        value={func.function.name}
-                                        onChange={(e) => handleFunctionChange(funcIndex, e)}
-                                        fullWidth
-                                        margin="normal"
-                                    />
+    <div key={funcIndex} style={{ marginBottom: "20px" }}>
+        {/* Function Name */}
+        <TextField
+            label="Function Name"
+            name="name"
+            value={func.function.name}
+            onChange={(e) => handleFunctionChange(funcIndex, e)}
+            fullWidth
+            margin="normal"
+        />
 
-                                    {/* Function Description */}
-                                    <TextField
-                                        label="Function Description"
-                                        name="description"
-                                        value={func.function.description}
-                                        onChange={(e) => handleFunctionChange(funcIndex, e)}
-                                        fullWidth
-                                        margin="normal"
-                                    />
+        {/* Function Description */}
+        <TextField
+            label="Function Description"
+            name="description"
+            value={func.function.description}
+            onChange={(e) => handleFunctionChange(funcIndex, e)}
+            fullWidth
+            margin="normal"
+        />
 
-                                    {/* Function Parameters */}
-                                    {Object.entries(func.function.parameters.properties).map(([argName, argDetails]) => (
-                                        <div
-                                            key={argName}
-                                            style={{ display: "flex", alignItems: "center", marginBottom: "10px" }}
-                                        >
-                                            {/* Variable Name */}
-                                            <TextField
-                                                label="Variable Name"
-                                                name={argName}
-                                                value={argName}
-                                                onChange={(e) => handleArgumentChange(funcIndex, argName, e)}
-                                                fullWidth
-                                                margin="normal"
-                                            />
+        {/* Function URL */}
+        <TextField
+            label="Function URL"
+            name="url"
+            value={func.function.url}
+            onChange={(e) => handleFunctionChange(funcIndex, e)}  // Update this function
+            fullWidth
+            margin="normal"
+        />
 
-                                            {/* Variable Description */}
-                                            <TextField
-                                                label="Variable Description"
-                                                name="description"
-                                                value={argDetails.description}
-                                                onChange={(e) => handleArgumentChange(funcIndex, argName, e)}
-                                                fullWidth
-                                                margin="normal"
-                                            />
-                                        </div>
-                                    ))}
-                                </div>
-                            ))}
+        {/* Function Parameters */}
+        {Object.entries(func.function.parameters.properties).map(([argName, argDetails]) => (
+            <div
+                key={argName}
+                style={{ display: "flex", alignItems: "center", marginBottom: "10px" }}
+            >
+                {/* Variable Name */}
+                <TextField
+                    label="Variable Name"
+                    name={argName}
+                    value={argName}
+                    onChange={(e) => handleArgumentChange(funcIndex, argName, e)}
+                    fullWidth
+                    margin="normal"
+                />
+
+                {/* Variable Description */}
+                <TextField
+                    label="Variable Description"
+                    name="description"
+                    value={argDetails.description}
+                    onChange={(e) => handleArgumentChange(funcIndex, argName, e)}
+                    fullWidth
+                    margin="normal"
+                />
+            </div>
+        ))}
+    </div>
+))}
+
                             <Button
                                 variant="contained"
                                 color="primary"
@@ -521,6 +563,14 @@ export const ChatBot = () => {
                         >
                             Send
                         </Button>
+                        <Button
+        variant="contained"
+        color="secondary"
+        onClick={handleGenerateEmbedCode}
+        style={{ marginLeft: "10px" }}
+    >
+        Get Embed Code
+    </Button>           
                     </div>
                 </div>
             </div>
@@ -556,75 +606,86 @@ export const ChatBot = () => {
                         margin="normal"
                     />
                     {modalFormData.tools.map((func, funcIndex) => (
-                        <div key={funcIndex} style={{ marginBottom: "20px" }}>
-                            {/* Function Name */}
-                            <TextField
-                                label="Function Name"
-                                name="name"
-                                value={func.function.name}
-                                onChange={(e) => handleModalFunctionChange(funcIndex, e)}
-                                fullWidth
-                                margin="normal"
-                            />
+    <div key={funcIndex} style={{ marginBottom: "20px" }}>
+        {/* Function Name */}
+        <TextField
+            label="Function Name"
+            name="name"
+            value={func.function.name}
+            onChange={(e) => handleModalFunctionChange(funcIndex, e)}
+            fullWidth
+            margin="normal"
+        />
 
-                            {/* Function Description */}
-                            <TextField
-                                label="Function Description"
-                                name="description"
-                                value={func.function.description}
-                                onChange={(e) => handleModalFunctionChange(funcIndex, e)}
-                                fullWidth
-                                margin="normal"
-                            />
+        {/* Function Description */}
+        <TextField
+            label="Function Description"
+            name="description"
+            value={func.function.description}
+            onChange={(e) => handleModalFunctionChange(funcIndex, e)}
+            fullWidth
+            margin="normal"
+        />
 
-                            {/* Function Parameters */}
-                            {Object.entries(func.function.parameters.properties).map(([argName, argDetails]) => (
-                                <div
-                                    key={argName}
-                                    style={{ display: "flex", alignItems: "center", marginBottom: "10px" }}
-                                >
-                                    {/* Variable Name */}
-                                    <TextField
-                                        label="Variable Name"
-                                        name={argName}
-                                        value={argName}
-                                        onChange={(e) => handleModalArgumentChange(funcIndex, argName, e)}
-                                        fullWidth
-                                        margin="normal"
-                                    />
+        {/* Function URL */}
+        <TextField
+            label="Function URL"
+            name="url"
+            value={func.function.url}
+            onChange={(e) => handleModalFunctionChange(funcIndex, e)}  // Update this function
+            fullWidth
+            margin="normal"
+        />
 
-                                    {/* Variable Description */}
-                                    <TextField
-                                        label="Variable Description"
-                                        name="description"
-                                        value={argDetails.description}
-                                        onChange={(e) => handleModalArgumentChange(funcIndex, argName, e)}
-                                        fullWidth
-                                        margin="normal"
-                                    />
+        {/* Function Parameters */}
+        {Object.entries(func.function.parameters.properties).map(([argName, argDetails]) => (
+            <div
+                key={argName}
+                style={{ display: "flex", alignItems: "center", marginBottom: "10px" }}
+            >
+                {/* Variable Name */}
+                <TextField
+                    label="Variable Name"
+                    name={argName}
+                    value={argName}
+                    onChange={(e) => handleModalArgumentChange(funcIndex, argName, e)}
+                    fullWidth
+                    margin="normal"
+                />
 
-                                    {/* Remove Argument Button */}
-                                    <IconButton onClick={() => handleRemoveArgumentFromModal(funcIndex, argName)}>
-                                        <Remove />
-                                    </IconButton>
-                                </div>
-                            ))}
+                {/* Variable Description */}
+                <TextField
+                    label="Variable Description"
+                    name="description"
+                    value={argDetails.description}
+                    onChange={(e) => handleModalArgumentChange(funcIndex, argName, e)}
+                    fullWidth
+                    margin="normal"
+                />
 
-                            {/* Add Argument Button */}
-                            <Button
-                                variant="contained"
-                                onClick={() => handleAddArgumentToModal(funcIndex)}
-                                style={{ marginTop: "10px" }}
-                            >
-                                Add Variable
-                            </Button>
+                {/* Remove Argument Button */}
+                <IconButton onClick={() => handleRemoveArgumentFromModal(funcIndex, argName)}>
+                    <Remove />
+                </IconButton>
+            </div>
+        ))}
 
-                            {/* Remove Function Button */}
-                            <IconButton onClick={() => handleRemoveFunctionFromModal(funcIndex)}>
-                                <Remove />
-                            </IconButton>
-                        </div>
-                    ))}
+        {/* Add Argument Button */}
+        <Button
+            variant="contained"
+            onClick={() => handleAddArgumentToModal(funcIndex)}
+            style={{ marginTop: "10px" }}
+        >
+            Add Variable
+        </Button>
+
+        {/* Remove Function Button */}
+        <IconButton onClick={() => handleRemoveFunctionFromModal(funcIndex)}>
+            <Remove />
+        </IconButton>
+    </div>
+))}
+
 
                     <Button variant="contained" onClick={handleAddFunctionToModal} style={{ marginTop: "20px" }}>
                         Add Function
@@ -659,7 +720,9 @@ const getInitialChatbotDetails = () => ({
                     required: [],
                     type: "object",
                 },
+                url: ""  // New URL field
             },
         },
     ],
 });
+
