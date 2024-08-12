@@ -1,10 +1,11 @@
+from flask import jsonify
 import openai
 import json
 import requests
 import time
 import os
 from dotenv import load_dotenv
-from db_helper import get_tool,add_tool
+from db_helper import get_tool,add_tool,register_variables,fetch_variables,transfer_message_to_db,change_thread_status,get_thread_status
 import copy
 
 load_dotenv()
@@ -132,21 +133,25 @@ def call_required_functions(run, required_actions):
     tools_output = []
     required_actions_dict = object_to_dict(required_actions)
     print(f"Required Actions => {required_actions_dict}")
+    print(f"run => {run}")
 
     if 'submit_tool_outputs' in required_actions_dict:
         action = required_actions_dict['submit_tool_outputs']
         for tool_call in action['tool_calls']:
             func_name = tool_call['function']['name']
-            #print(f"function name => {func_name}")
 
             arguments = json.loads(tool_call['function']['arguments'])
             print(f"function_name={func_name}\narguments={arguments}")
             output = {}
-
+            register_var = register_variables(run.thread_id,arguments)
+            print(f"registered variables => {register_var}")
+            fetched_var=fetch_variables(run.thread_id)
+            print(f"fetched variable => {fetched_var}")
             # Retrieve the tool data, including the URL, from MongoDB
             tool_data = get_tool(run.assistant_id,func_name)
             print(f"tool data => {tool_data}\n arhuments => {arguments}\nrun => {run}\nassistant id => {run.assistant_id}")
             if tool_data["success"]:
+
                 url = tool_data["tool"]["tools"]["url"]
                 try:
                     response = requests.post(url, json=arguments)
@@ -184,3 +189,23 @@ def wait_for_run_completion(thread_id, run_id):
             print(e)
             break
     return response
+
+def handle_thread_cancel(thread_id):
+    thread_status = get_thread_status(thread_id)
+    if not thread_status['success']:
+        return jsonify({"error": thread_status['message']}), 404
+
+    if thread_status['status'] == "active":
+        messages = client.beta.threads.messages.list(thread_id)
+    
+        transfer=transfer_message_to_db(thread_id,messages)
+        if transfer['success']:
+            thread_staus_change = change_thread_status(thread_id,"agent_takeover")
+            if thread_staus_change['success']:
+                result = client.beta.threads.delete(thread_id)
+                print(f"delete thread object => {result}")
+                return object_to_dict(result)
+            return thread_staus_change
+        return transfer
+    
+    return {"message":"thread already cancelled"}

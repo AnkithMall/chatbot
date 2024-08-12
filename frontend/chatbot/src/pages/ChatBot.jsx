@@ -39,28 +39,29 @@ export const ChatBot = () => {
     const [message, setMessage] = useState("");
     const [loading, setLoading] = useState(false);
 
+    const fetchChatbots = async () => {
+        setLoading(true);
+        try {
+            const response = await axios.get(`${import.meta.env.BASE_URL_BACKEND_SERVER}/chatbots`);
+            setChatbots(response.data);
+        } catch (error) {
+            console.error("Error fetching chatbots:", error);
+        } finally {
+            setLoading(false);
+        }
+    };
     useEffect(() => {
-        const fetchChatbots = async () => {
-            setLoading(true);
-            try {
-                const response = await axios.get("http://127.0.0.1:5000/chatbots");
-                setChatbots(response.data);
-            } catch (error) {
-                console.error("Error fetching chatbots:", error);
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        fetchChatbots();
+        const intervalId = setInterval(fetchChatbots, 60000);
+        return () => clearInterval(intervalId);
     }, []);
+    
 
     const handleUpdateChatbot = async () => {
         if (!selectedChatbot) return;
         
         setLoading(true);
         try {
-            const response = await axios.post("http://127.0.0.1:5000/update_assistant", {
+            const response = await axios.post(`${import.meta.env.BASE_URL_BACKEND_SERVER}/update_assistant`, {
                 asst_id: selectedChatbot.id,
                 name: chatbotDetails.name,
                 instruction: chatbotDetails.instructions,
@@ -236,7 +237,7 @@ export const ChatBot = () => {
     const handleCreateChatbot = async () => {
         setLoading(true);
         try {
-            const response = await axios.post("http://127.0.0.1:5000/create_assistant", {
+            const response = await axios.post(`${import.meta.env.BASE_URL_BACKEND_SERVER}/create_assistant`, {
                 name: modalFormData.name,
                 instruction: modalFormData.instructions,
                 model: modalFormData.model,
@@ -331,7 +332,7 @@ export const ChatBot = () => {
 
     const createThread = useCallback(async (assistantId) => {
         try {
-            const response = await axios.post("http://127.0.0.1:5000/create_thread");
+            const response = await axios.post(`${import.meta.env.BASE_URL_BACKEND_SERVER}/create_thread`);
             setThreadId(response.data.thread_id);
         } catch (error) {
             console.error("Error creating thread:", error);
@@ -362,7 +363,7 @@ export const ChatBot = () => {
         console.log("thread id => ",threadId);
         if (!threadId) return;
         try {
-            const response = await axios.get(`http://127.0.0.1:5000/threads/${threadId}/messages`);
+            const response = await axios.get(`${import.meta.env.BASE_URL_BACKEND_SERVER}/threads/${threadId}/messages`);
             const messages = response.data.messages.map(msg => ({
                 role: msg.role,
                 content: msg.content.map(part => part.text.value).join(' ')
@@ -373,6 +374,14 @@ export const ChatBot = () => {
         }
     }, [threadId]);
 
+    useEffect(() => {
+        if (threadId) {
+            fetchMessages();
+            const intervalId = setInterval(fetchMessages, 10000); // Poll every 5 seconds
+            return () => clearInterval(intervalId); // Clean up on component unmount
+        }
+    }, [fetchMessages, threadId]);
+
     const handleGenerateEmbedCode = () => {
         if (!selectedChatbot) return;
     
@@ -382,7 +391,7 @@ export const ChatBot = () => {
             (function() {
                 var chatContainer = document.getElementById('chatbot-container');
                 var chatbotFrame = document.createElement('iframe');
-                chatbotFrame.src = "http://127.0.0.1:5000/chatbot/${selectedChatbot.id}";
+                chatbotFrame.src = "${import.meta.env.BASE_URL_BACKEND_SERVER}/chatbot?assistant_id=${selectedChatbot.id}";
                 chatbotFrame.style.position = "fixed";
                 chatbotFrame.style.bottom = "0";
                 chatbotFrame.style.right = "0";
@@ -725,4 +734,4 @@ const getInitialChatbotDetails = () => ({
         },
     ],
 });
-
+//current version - 12-08-2024 - 1:55pm

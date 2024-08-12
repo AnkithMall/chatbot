@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Embedded Chatbot</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+        }
+        #chat-container {
+            position: fixed;
+            bottom: 0;
+            right: 0;
+            width: 350px;
+            height: 500px;
+            border: 1px solid #ccc;
+            display: flex;
+            flex-direction: column;
+            background-color: #007bff;
+        }
+        #chat-messages {
+            flex: 1;
+            padding: 10px;
+            overflow-y: auto;
+            border-bottom: 1px solid #ccc;
+        }
+        #chat-input {
+            display: flex;
+            padding: 10px;
+            background-color: #f1f1f1;
+        }
+        #chat-input input {
+            flex: 1;
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        #chat-input button {
+            padding: 8px;
+            margin-left: 10px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div id="chat-container">
+        <div id="chat-messages"></div>
+        <div id="chat-input">
+            <input type="text" id="message-input" placeholder="Type your message...">
+            <button id="send-button">Send</button>
+        </div>
+    </div>
+
+    <script>
+        (function() {
+            const chatMessages = document.getElementById('chat-messages');
+            const messageInput = document.getElementById('message-input');
+            const sendButton = document.getElementById('send-button');
+            const url = "http://127.0.0.1:5000"
+            let threadId = null;
+            const params = new URLSearchParams(window.location.search);
+            const assistantId = params.get('assistant_id');
+
+            async function createThread() {
+                try {
+                    const response = await fetch(`${url}/create_thread`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        }
+                    });
+                    const data = await response.json();
+                    threadId = data.thread_id;
+                    fetchMessages(); // Fetch messages initially
+                    setInterval(fetchMessages, 5000);
+                } catch (error) {
+                    console.error('Error creating thread:', error);
+                }
+            }
+
+            async function sendMessage(message) {
+                if (!threadId || !message.trim()) return;
+
+                try {
+                    await fetch(`${url}/chat`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            thread_id: threadId,
+                            message: message,
+                            asst_id: assistantId
+                        })
+                    });
+                    appendMessage('user', message);
+                    messageInput.value = '';
+                    //fetchMessages(); // Fetch the assistant's response
+                } catch (error) {
+                    console.error('Error sending message:', error);
+                }
+            }
+
+            async function fetchMessages() {
+                if (!threadId) return;
+                try {
+                    const response = await fetch(`${url}/threads/${threadId}/messages`);
+                    const data = await response.json();
+                    chatMessages.innerHTML = ''; // Clear current messages
+                    
+                    data.messages.reverse().forEach(msg => {
+                        const content = msg.content.map(part => part.text.value).join(' ');
+                        appendMessage(msg.role, content);
+                    });
+                } catch (error) {
+                    console.error('Error fetching messages:', error);
+                }
+            }
+
+            function appendMessage(role, message) {
+                const messageDiv = document.createElement('div');
+                messageDiv.textContent = message;
+                messageDiv.style.textAlign = role === 'user' ? 'right' : 'left';
+                messageDiv.style.margin = '5px 0';
+                messageDiv.style.padding = '8px';
+                messageDiv.style.borderRadius = '4px';
+                messageDiv.style.backgroundColor = role === 'user' ? '#e0f7fa' : ( role === 'agent' ?'#32a83c':'#fff9c4');
+                chatMessages.appendChild(messageDiv);
+                chatMessages.scrollTop = chatMessages.scrollHeight; // Scroll to the bottom
+            }
+
+            sendButton.addEventListener('click', () => sendMessage(messageInput.value));
+
+            messageInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    sendMessage(messageInput.value);
+                }
+            });
+
+            // Initialize the chatbot
+            createThread();
+        })();
+    </script>
+</body>
+</html>

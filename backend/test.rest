@@ -27,7 +27,7 @@ Content-Type: application/json
 }
 
 ###
-GET https://api.openai.com/v1/threads/thread_7rFcQSls5TFmJkHUYikU02qG/runs/run_1299daPvBmSm36OyOuHejpYo
+POST https://api.openai.com/v1/threads/thread_v9fqIcA0PVUbWRkkoeYTEYeh/runs/run_1299daPvBmSm36OyOuHejpYo/cancel
 Authorization: Bearer 
 OpenAI-Beta: assistants=v2
 

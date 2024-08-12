@@ -1,11 +1,12 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-from helper_function import create_assistant_helper, create_message, run_thread, wait_for_run_completion, object_to_dict,update_assistant_helper
+from helper_function import create_assistant_helper, create_message, run_thread, wait_for_run_completion, object_to_dict,update_assistant_helper,handle_thread_cancel
 import openai
 import os
 from dotenv import load_dotenv
-
+from db_helper import register_thread,get_threads,fetch_variables,get_thread_status,add_message_to_thread,fetch_messages_by_thread_id
 load_dotenv()
+from datetime import datetime
 
 client = openai.OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 app = Flask(__name__)
@@ -16,7 +17,10 @@ default_asst = "asst_fN72dShbo6g7z5okrGfO5eDB"
 @app.route('/create_thread', methods=['POST'])
 def create_thread():
     #return client.beta.threads.create().id
-    thread_id = client.beta.threads.create().id
+    thread = client.beta.threads.create()
+    thread_id = thread.id
+    register_result=register_thread(thread)
+    print(f"registered result => {register_result}")
     return jsonify({"thread_id": thread_id}), 201
 
 @app.route('/create_assistant', methods=['POST'])
@@ -65,12 +69,25 @@ def chat():
     asst_id = data.get("asst_id")
     if not thread_id or not message:
         return jsonify({"error": "Invalid request body"}), 400
-
-    # Interact with OpenAI's API
-    msg = create_message(message, thread_id)
-    run_detail = run_thread(thread_id, asst_id)
-    wait_for_run_completion(thread_id, run_detail.id)
-    return {"run_id": run_detail.id}, 200
+    thread_status = get_thread_status(thread_id)
+    if thread_status['status'] == "active":
+        # Interact with OpenAI's API
+        msg = create_message(message, thread_id)
+        run_detail = run_thread(thread_id, asst_id)
+        wait_for_run_completion(thread_id, run_detail.id)
+        #db_update=register_thread(thread_id)
+        #print(f"db update result => {db_update}")
+        return {"run_id": run_detail.id}, 200
+    elif thread_status['status'] == "agent_takeover":
+        new_message = {
+            "assistant_id": "agent-default",
+            "content": [{"text": {"annotations": [], "value": message}, "type": "text"}],
+            "role": "agent",
+            "created_at": int(datetime.now().timestamp())  # You can replace this with the current timestamp if needed
+        }
+        # Add message to the DB message list
+        add_message_result = add_message_to_thread(thread_id, new_message)
+        return add_message_result, 200
 
 @app.route('/chatbots', methods=['GET'])
 def chatbots():
@@ -83,72 +100,59 @@ def get_messages(thread_id):
     if not thread_id:
         return jsonify({"error": "Invalid thread ID"}), 400
 
-    print(f"theead => {thread_id}\n")
-    # Fetch messages from the thread using your chat client or database
-    messages = object_to_dict(client.beta.threads.messages.list(thread_id).data)
-    print(messages)
-    return jsonify({"messages": messages}), 200
+    # Fetch the thread status
+    thread_status = get_thread_status(thread_id)
+    
+    if not thread_status['success']:
+        return jsonify({"error": thread_status['message']}), 404
+    print(f"thread_status => {thread_status['status']}")
+    if thread_status['status'] == "active":
+        # Fetch messages directly from the chat client or database for active threads
+        try:
+            messages = object_to_dict(client.beta.threads.messages.list(thread_id).data)
+            print(f"messages => {messages}")
+            return jsonify({"messages": messages}), 200
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
 
-@app.route('/chatbot/<assistant_id>', methods=['GET'])
-def serve_chatbot(assistant_id):
-    return f'''
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Chatbot</title>
-        <style>
-            body, html {{ margin: 0; padding: 0; height: 100%; overflow: hidden; }}
-            #chatbot-container {{
-                position: fixed;
-                bottom: 0;
-                right: 0;
-                width: 100%;
-                height: 100%;
-                border: none;
-                z-index: 1000;
-            }}
-        </style>
-    </head>
-    <body>
-        <div id="chatbot-container"></div>
-        <script>
-            (function() {{
-                var threadId = null;
-                async function createThread() {{
-                    const response = await fetch('/create_thread', {{ method: 'POST' }});
-                    const data = await response.json();
-                    threadId = data.thread_id;
-                }}
-                
-                async function sendMessage(message) {{
-                    const response = await fetch('/chat', {{
-                        method: 'POST',
-                        headers: {{ 'Content-Type': 'application/json' }},
-                        body: JSON.stringify({{
-                            thread_id: threadId,
-                            message: message,
-                            asst_id: '{assistant_id}'
-                        }})
-                    }});
-                    const result = await response.json();
-                    return result.run_id;
-                }}
+    elif thread_status['status'] == "agent_takeover":
+        # Fetch messages from the database for threads with agent takeover status
+        messages = fetch_messages_by_thread_id(thread_id)
+        if messages['success']:
+            return jsonify({"messages": messages['messages']}), 200
+        else:
+            return jsonify({"error": messages['message']}), 404
 
-                // Initialize the chatbot
-                createThread();
-                
-                // For demonstration purposes, automatically send a welcome message
-                setTimeout(() => {{
-                    sendMessage("Hello, how can I assist you today?");
-                }}, 1000);
-            }})();
-        </script>
-    </body>
-    </html>
-    '''
+    else:
+        return jsonify({"error": "Invalid thread status"}), 400
 
+
+@app.route('/chatbot', methods=['GET'])
+def serve_chatbot():
+    assistant_id = request.args.get('assistant_id')
+    if not assistant_id:
+        return "Assistant ID is required", 400
+    with open('./embedded_chatbot.html', 'r') as file:
+        chatbot_html = file.read()
+    return chatbot_html.replace("{{assistant_id}}", assistant_id)
+
+@app.route('/threads',methods=['GET'])
+def get_threads_from_db():
+    threads = get_threads()
+    
+    print(threads)
+    return jsonify(threads), 200
+
+@app.route('/get_variables/<thread_id>/',methods=['GET'])
+def get_variables(thread_id):
+    print(thread_id)
+    fetched_var=fetch_variables(thread_id)
+    return jsonify(fetched_var),200
+
+@app.route('/agent_takeover/<thread_id>',methods=['GET'])
+def agent_takeover(thread_id):
+    return {"message":handle_thread_cancel(thread_id)},200
+        
 
 
 if __name__ == '__main__':
