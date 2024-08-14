@@ -76,6 +76,7 @@ graph TD
     J --> M
     K --> M
 
+
 # Flask Chatbot Backend with MongoDB and OpenAI Integration
 
 This application serves as the backend for managing chatbots, chat threads, and messages using Flask, MongoDB, and OpenAI's API. It provides a comprehensive solution for creating and managing chatbots and their interactions.
