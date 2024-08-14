@@ -57,6 +57,7 @@ graph TD
   I --> T[Polling for Messages]
   T --> G
 
+```
 
 # ChatBot Management Application
 
