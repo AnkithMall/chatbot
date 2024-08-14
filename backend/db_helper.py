@@ -1,3 +1,4 @@
+import json
 from pymongo import MongoClient, ASCENDING
 import os
 from dotenv import load_dotenv
@@ -12,6 +13,15 @@ tools_collection.create_index([("asst_id", ASCENDING)], unique=True)
 threads_collection = db['threads_collection']
 variable_collection = db['variable_collection']
 message_collection = db['message_collection']
+
+def stream_threads():
+        # Tail a MongoDB collection for changes using `change_stream`
+        with threads_collection.watch() as stream:
+            for change in stream:
+                print(f"stream data => {change}")
+                change["fullDocument"].pop("_id")
+                event_data = {"operationType":change["operationType"],"fullDocument":change["fullDocument"]}
+                yield f'data: {json.dumps(event_data)}\n\n'  # Send data as an SSE event
 
 def transfer_message_to_db(thread_id,messages):
     record = { "thread_id":thread_id,"messages":object_to_dict(messages.data)}

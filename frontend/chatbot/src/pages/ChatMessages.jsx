@@ -78,20 +78,46 @@ export const ChatMessages = () => {
     }
   };
 
-  useEffect(() => {
-    // Fetch threads on component mount
+  useEffect(()=>{
     fetchThreads();
+    const eventSource = new EventSource(`${import.meta.env.VITE_BASE_URL_BACKEND_SERVER}/events/threads`);
 
-    // Set up polling for threads and messages
-    //const threadPollingInterval = setInterval(fetchThreads, 20000); // Poll threads every 5 seconds
+    eventSource.onmessage = (event) => {
+      console.log("sse event => ",event);
+      //const validJsonString = event.data.replace(/'/g, '"');
+      const data = JSON.parse(event.data);
+      console.log("sse event data => ",data);
+      data.operationType === "insert"&&setThreads((prevThreads)=> [data.fullDocument,...prevThreads])
+      //const data = JSON.parse(event.data);
+      // Assuming data contains the updated thread/message info
+      // if (data.operationType === 'insert') {
+      //   // Handle new threads or messages
+      //   const newMessage = data.fullDocument;  // Change according to your data format
+      //   setMessages((prevMessages) => [...prevMessages, newMessage]);
+      // }
+    };
+
+    eventSource.onerror = (error) => {
+      console.error("Error with SSE connection:", error);
+      eventSource.close();
+      // Optionally attempt to reconnect after a delay
+  setTimeout(() => {
+    eventSource = new EventSource(`${import.meta.env.VITE_BASE_URL_BACKEND_SERVER}/events/threads`);
+  }, 5000); // Reconnect after 5 seconds
+    };
+
+    return () => {
+      eventSource.close();  // Clean up when component unmounts
+    };
+  },[])
+  useEffect(() => {
     const messagePollingInterval = setInterval(() => {
       if (selectedThread) {
         fetchMessages(selectedThread);
       }
-    }, 5000); // Poll messages every 5 seconds
+    }, 5000); 
 
     return () => {
-      //clearInterval(threadPollingInterval); // Clear thread polling interval on component unmount
       clearInterval(messagePollingInterval); // Clear message polling interval on component unmount
     };
   }, [selectedThread]); // Re-run polling when selectedThread changes
@@ -99,7 +125,7 @@ export const ChatMessages = () => {
   return (
     <div style={{ display: 'flex', height: '100vh' }}>
       {/* First Section: Thread List */}
-      <div style={{ width: '25%', borderRight: '1px solid #ccc', padding: '20px' }}>
+      <div style={{ width: '25%',height:'90vh',overflow:"scroll", borderRight: '1px solid #ccc', padding: '20px' }}>
         <Typography variant="h6">Threads</Typography>
         {loading ? (
           <CircularProgress />

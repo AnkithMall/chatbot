@@ -246,7 +246,7 @@ export const ChatBot = () => {
                 id: response.data.assistant_id,
                 ...modalFormData,
             };
-            setChatbots((prevChatbots) => [...prevChatbots, newChatbot]);
+            setChatbots((prevChatbots) => [newChatbot,...prevChatbots]);
             setModalFormData(getInitialChatbotDetails()); // Reset the modal form
             handleClose(); // Close the modal after creating a chatbot
         } catch (error) {
@@ -357,8 +357,7 @@ export const ChatBot = () => {
             });
     
             setChatMessages((prevMessages) => [
-                ...prevMessages,
-                { role: "user", content: message }
+                { role: "user", content: message },...prevMessages
             ]);
             setMessage("");
             await fetchMessages(); // Fetch messages after sending a new one

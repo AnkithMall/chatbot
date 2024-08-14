@@ -5,3 +5,4 @@ requests
 gunicorn
 flask_cors
 pymongo
+flask-sse

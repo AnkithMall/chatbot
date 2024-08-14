@@ -1,10 +1,10 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, Response
 from flask_cors import CORS
 from helper_function import create_assistant_helper, create_message, run_thread, wait_for_run_completion, object_to_dict,update_assistant_helper,handle_thread_cancel
 import openai
 import os
 from dotenv import load_dotenv
-from db_helper import register_thread,get_threads,fetch_variables,get_thread_status,add_message_to_thread,fetch_messages_by_thread_id
+from db_helper import register_thread,get_threads,fetch_variables,get_thread_status,add_message_to_thread,fetch_messages_by_thread_id,stream_threads
 load_dotenv()
 from datetime import datetime
 
@@ -151,8 +151,11 @@ def get_variables(thread_id):
 @app.route('/agent_takeover/<thread_id>',methods=['GET'])
 def agent_takeover(thread_id):
     return {"message":handle_thread_cancel(thread_id)},200
-        
+
+@app.route('/events/threads')
+def sse():
+    return Response(stream_threads(), mimetype='text/event-stream')
 
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=True,threaded=True)
