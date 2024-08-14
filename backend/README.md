@@ -76,3 +76,88 @@ graph TD
     J --> M
     K --> M
 
+```
+
+# Flask Chatbot Backend with MongoDB and OpenAI Integration
+
+This application serves as the backend for managing chatbots, chat threads, and messages using Flask, MongoDB, and OpenAI's API. It provides a comprehensive solution for creating and managing chatbots and their interactions.
+
+## Key Features
+
+### 1. **Chatbot Management**
+   - **Create Chatbot**: 
+     - Creates a new chatbot (assistant) using the OpenAI API.
+     - Stores related tools and their URLs in MongoDB.
+   - **Update Chatbot**: 
+     - Updates an existing chatbot's details and tools in MongoDB.
+   - **Retrieve Tool**: 
+     - Fetches a specific tool by its name and assistant ID from MongoDB.
+
+### 2. **Thread Management**
+   - **Create Thread**: 
+     - Registers a new chat thread in MongoDB with a status of "active".
+   - **Change Thread Status**: 
+     - Updates the status of a thread in MongoDB (e.g., active, agent_takeover).
+   - **Fetch Messages by Thread**: 
+     - Retrieves messages associated with a specific thread ID from MongoDB.
+
+### 3. **Message Handling**
+   - **Create Message**: 
+     - Creates a new message in a thread using the OpenAI API.
+   - **Add Message to Thread**: 
+     - Adds a new message to a specific thread in MongoDB.
+   - **Transfer Messages to DB**: 
+     - Transfers messages from OpenAI to MongoDB when a thread is canceled.
+
+### 4. **Function Execution**
+   - **Call Required Functions**: 
+     - Executes functions required by the assistant and submits results back to the OpenAI API.
+   - **Wait for Run Completion**: 
+     - Handles the process of waiting for a thread run to complete, executing required actions during the process.
+
+### 5. **Variable Management**
+   - **Register Variables**: 
+     - Stores variables related to a specific thread in MongoDB.
+   - **Fetch Variables**: 
+     - Retrieves variables for a specific thread from MongoDB.
+
+## Architecture Diagram
+
+```mermaid
+graph TD
+    subgraph Flask Server
+        A[User Request]
+        B[Flask Application]
+        C[MongoDB Integration]
+        D[OpenAI API Integration]
+    end
+
+    subgraph MongoDB
+        E[function_collection]
+        F[threads_collection]
+        G[message_collection]
+        H[variable_collection]
+    end
+
+    subgraph OpenAI API
+        I[Create Assistant]
+        J[Create Thread]
+        K[Send Message]
+        L[Run Thread]
+        M[Wait for Run Completion]
+        N[Handle Function Calls]
+    end
+
+    A --> B
+    B --> C
+    C --> E
+    C --> F
+    C --> G
+    C --> H
+    B --> D
+    D --> I
+    D --> J
+    D --> K
+    D --> L
+    D --> M
+    D --> N
