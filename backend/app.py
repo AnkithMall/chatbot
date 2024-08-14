@@ -20,7 +20,7 @@ def create_thread():
     thread = client.beta.threads.create()
     thread_id = thread.id
     register_result=register_thread(thread)
-    print(f"registered result => {register_result}")
+    #print(f"registered result => {register_result}")
     return jsonify({"thread_id": thread_id}), 201
 
 @app.route('/create_assistant', methods=['POST'])
@@ -105,12 +105,12 @@ def get_messages(thread_id):
     
     if not thread_status['success']:
         return jsonify({"error": thread_status['message']}), 404
-    print(f"thread_status => {thread_status['status']}")
+    #print(f"thread_status => {thread_status['status']}")
     if thread_status['status'] == "active":
         # Fetch messages directly from the chat client or database for active threads
         try:
             messages = object_to_dict(client.beta.threads.messages.list(thread_id).data)
-            print(f"messages => {messages}")
+            #print(f"messages => {messages}")
             return jsonify({"messages": messages}), 200
         except Exception as e:
             return jsonify({"error": str(e)}), 500
@@ -139,13 +139,12 @@ def serve_chatbot():
 @app.route('/threads',methods=['GET'])
 def get_threads_from_db():
     threads = get_threads()
-    
-    print(threads)
+    #print(threads)
     return jsonify(threads), 200
 
 @app.route('/get_variables/<thread_id>/',methods=['GET'])
 def get_variables(thread_id):
-    print(thread_id)
+    #print(thread_id)
     fetched_var=fetch_variables(thread_id)
     return jsonify(fetched_var),200
 
@@ -156,4 +155,4 @@ def agent_takeover(thread_id):
 
 
 if __name__ == '__main__':
-    app.run(debug=False)
+    app.run(debug=True)

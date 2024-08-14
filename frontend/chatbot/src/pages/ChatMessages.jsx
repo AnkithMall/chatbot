@@ -23,8 +23,12 @@ export const ChatMessages = () => {
   const fetchThreads = async () => {
     setLoading(true);
     try {
-      const response = await axios.get(`${import.meta.env.BASE_URL_BACKEND_SERVER}/threads`);
-      setThreads(response.data);
+      const url = `${import.meta.env.VITE_BASE_URL_BACKEND_SERVER}/threads`
+      console.log(url);
+      const response = await axios.get(url);
+      console.log("data => ",response.data);
+      setThreads(Array.isArray(response.data) ? response.data.reverse() : []);
+
     } catch (error) {
       console.error("Error fetching threads:", error);
     } finally {
@@ -34,11 +38,13 @@ export const ChatMessages = () => {
 
   // Function to fetch and update messages
   const fetchMessages = async (threadId) => {
+    setVariables([]);
     try {
-      const response = await axios.get(`${import.meta.env.BASE_URL_BACKEND_SERVER}/threads/${threadId}/messages`);
-      const response1 = await axios.get(`${import.meta.env.BASE_URL_BACKEND_SERVER}/get_variables/${threadId}`);
+      const response = await axios.get(`${import.meta.env.VITE_BASE_URL_BACKEND_SERVER}/threads/${threadId}/messages`);
+      const response1 = await axios.get(`${import.meta.env.VITE_BASE_URL_BACKEND_SERVER}/get_variables/${threadId}`);
       setMessages(response.data.messages.reverse());
       setSelectedThread(threadId);
+      
       setVariables(response1.data.variables.variables || []);  // Assuming the API returns a 'variables' object
     } catch (error) {
       console.error("There was an error fetching the messages!", error);
@@ -50,14 +56,14 @@ export const ChatMessages = () => {
 
     try {
       if (isFirstMessage) {
-        await axios.get(`${import.meta.env.BASE_URL_BACKEND_SERVER}/agent_takeover/${selectedThread}`);
+        await axios.get(`${import.meta.env.VITE_BASE_URL_BACKEND_SERVER}/agent_takeover/${selectedThread}`);
         setIsFirstMessage(false);
       }
 
-      await axios.post(`${import.meta.env.BASE_URL_BACKEND_SERVER}/chat`, {
+      await axios.post(`${import.meta.env.VITE_BASE_URL_BACKEND_SERVER}/chat`, {
         thread_id: selectedThread,
         message: messageText,
-        asst_id: "your-assistant-id-here",  // Replace with the actual assistant ID if needed
+        asst_id: "",  // Replace with the actual assistant ID if needed
       });
 
       setMessages(prevMessages => [
@@ -77,7 +83,7 @@ export const ChatMessages = () => {
     fetchThreads();
 
     // Set up polling for threads and messages
-    const threadPollingInterval = setInterval(fetchThreads, 20000); // Poll threads every 5 seconds
+    //const threadPollingInterval = setInterval(fetchThreads, 20000); // Poll threads every 5 seconds
     const messagePollingInterval = setInterval(() => {
       if (selectedThread) {
         fetchMessages(selectedThread);
@@ -85,7 +91,7 @@ export const ChatMessages = () => {
     }, 5000); // Poll messages every 5 seconds
 
     return () => {
-      clearInterval(threadPollingInterval); // Clear thread polling interval on component unmount
+      //clearInterval(threadPollingInterval); // Clear thread polling interval on component unmount
       clearInterval(messagePollingInterval); // Clear message polling interval on component unmount
     };
   }, [selectedThread]); // Re-run polling when selectedThread changes
@@ -98,7 +104,7 @@ export const ChatMessages = () => {
         {loading ? (
           <CircularProgress />
         ) : (
-          <List>
+          <List>{console.log("thread => ",threads)}
             {threads.filter(item => item.status === "active" || item.status === "agent_takeover").map(thread => (
               <ListItem button key={thread.id} onClick={() => fetchMessages(thread.id)}>
                 <ListItemText primary={thread.id} />

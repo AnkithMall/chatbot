@@ -138,15 +138,12 @@ def register_thread(thread):
         return {"success": False, "message": str(e)}
     
 def get_threads():
-    # Calculate the Unix timestamp for 260 minutes ago
-    time_threshold = int((datetime.now() - timedelta(minutes=2600)).timestamp())
-
-    # Fetch all matching threads with a created_at timestamp greater than or equal to the time threshold
-    threads = list(threads_collection.find({"created_at": {"$gte": time_threshold}}))
-    print(threads)
+   
+    threads = list(threads_collection.find({}))
+    #print(threads)
     for thread in threads:
         thread['_id'] = str(thread['_id'])
-    print(threads)
+    #print(threads)
     
     return threads if threads else {"success": False, "message": "threads not found"}
 

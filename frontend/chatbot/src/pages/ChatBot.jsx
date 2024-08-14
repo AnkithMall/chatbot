@@ -42,7 +42,7 @@ export const ChatBot = () => {
     const fetchChatbots = async () => {
         setLoading(true);
         try {
-            const response = await axios.get(`${import.meta.env.BASE_URL_BACKEND_SERVER}/chatbots`);
+            const response = await axios.get(`${import.meta.env.VITE_BASE_URL_BACKEND_SERVER}/chatbots`);
             setChatbots(response.data);
         } catch (error) {
             console.error("Error fetching chatbots:", error);
@@ -51,8 +51,7 @@ export const ChatBot = () => {
         }
     };
     useEffect(() => {
-        const intervalId = setInterval(fetchChatbots, 60000);
-        return () => clearInterval(intervalId);
+        fetchChatbots()
     }, []);
     
 
@@ -61,7 +60,7 @@ export const ChatBot = () => {
         
         setLoading(true);
         try {
-            const response = await axios.post(`${import.meta.env.BASE_URL_BACKEND_SERVER}/update_assistant`, {
+            const response = await axios.post(`${import.meta.env.VITE_BASE_URL_BACKEND_SERVER}/update_assistant`, {
                 asst_id: selectedChatbot.id,
                 name: chatbotDetails.name,
                 instruction: chatbotDetails.instructions,
@@ -237,7 +236,7 @@ export const ChatBot = () => {
     const handleCreateChatbot = async () => {
         setLoading(true);
         try {
-            const response = await axios.post(`${import.meta.env.BASE_URL_BACKEND_SERVER}/create_assistant`, {
+            const response = await axios.post(`${import.meta.env.VITE_BASE_URL_BACKEND_SERVER}/create_assistant`, {
                 name: modalFormData.name,
                 instruction: modalFormData.instructions,
                 model: modalFormData.model,
@@ -261,7 +260,7 @@ export const ChatBot = () => {
         setThreadId(null);
         setSelectedChatbot(chatbot);
         setChatbotDetails(chatbot);
-        createThread(chatbot.id);
+        //createThread(chatbot.id);
         setChatMessages([]); // Clear chat messages
         setMessage(""); 
     };
@@ -332,38 +331,47 @@ export const ChatBot = () => {
 
     const createThread = useCallback(async (assistantId) => {
         try {
-            const response = await axios.post(`${import.meta.env.BASE_URL_BACKEND_SERVER}/create_thread`);
-            setThreadId(response.data.thread_id);
+            const response = await axios.post(`${import.meta.env.VITE_BASE_URL_BACKEND_SERVER}/create_thread`);
+            await setThreadId(response.data.thread_id);
+            return response.data.thread_id
         } catch (error) {
             console.error("Error creating thread:", error);
         }
     }, []);
 
     const handleSendMessage = async () => {
-        console.log(threadId,message);
-        if (!threadId || !message.trim()) return;
+        if (!message.trim()) return;
+    
         try {
-            await axios.post("http://127.0.0.1:5000/chat", {
-                thread_id: threadId,
+            let newThreadId = '';
+            if (!threadId) {
+                newThreadId = await createThread(selectedChatbot.id);
+                //setThreadId(newThreadId);
+                console.log("Thread created => ", newThreadId);
+            }
+    
+            await axios.post(`${import.meta.env.VITE_BASE_URL_BACKEND_SERVER}/chat`, {
+                thread_id: threadId || newThreadId,
                 message,
                 asst_id: selectedChatbot.id,
             });
+    
             setChatMessages((prevMessages) => [
                 ...prevMessages,
                 { role: "user", content: message }
             ]);
             setMessage("");
-            fetchMessages(); // Fetch messages after sending a new one
+            await fetchMessages(); // Fetch messages after sending a new one
         } catch (error) {
             console.error("Error sending message:", error);
         }
     };
+    
 
     const fetchMessages = useCallback(async () => {
-        console.log("thread id => ",threadId);
         if (!threadId) return;
         try {
-            const response = await axios.get(`${import.meta.env.BASE_URL_BACKEND_SERVER}/threads/${threadId}/messages`);
+            const response = await axios.get(`${import.meta.env.VITE_BASE_URL_BACKEND_SERVER}/threads/${threadId}/messages`);
             const messages = response.data.messages.map(msg => ({
                 role: msg.role,
                 content: msg.content.map(part => part.text.value).join(' ')
@@ -373,14 +381,14 @@ export const ChatBot = () => {
             console.error("Error fetching messages:", error);
         }
     }, [threadId]);
+    
 
     useEffect(() => {
         if (threadId) {
             fetchMessages();
-            const intervalId = setInterval(fetchMessages, 10000); // Poll every 5 seconds
-            return () => clearInterval(intervalId); // Clean up on component unmount
         }
-    }, [fetchMessages, threadId]);
+    }, [threadId, fetchMessages]);
+    
 
     const handleGenerateEmbedCode = () => {
         if (!selectedChatbot) return;
@@ -391,7 +399,7 @@ export const ChatBot = () => {
             (function() {
                 var chatContainer = document.getElementById('chatbot-container');
                 var chatbotFrame = document.createElement('iframe');
-                chatbotFrame.src = "${import.meta.env.BASE_URL_BACKEND_SERVER}/chatbot?assistant_id=${selectedChatbot.id}";
+                chatbotFrame.src = "${import.meta.env.VITE_BASE_URL_BACKEND_SERVER}/chatbot?assistant_id=${selectedChatbot.id}";
                 chatbotFrame.style.position = "fixed";
                 chatbotFrame.style.bottom = "0";
                 chatbotFrame.style.right = "0";
