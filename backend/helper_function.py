@@ -207,5 +207,11 @@ def handle_thread_cancel(thread_id):
                 return object_to_dict(result)
             return thread_staus_change
         return transfer
+    elif thread_status['status'] == "agent_takeover":
+        return {"message":"thread already cancelled"}
+        
+    return {"message":"thread cancel failed!"}
     
-    return {"message":"thread already cancelled"}
+
+
+    

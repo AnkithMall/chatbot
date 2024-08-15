@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
+import io from 'socket.io-client';
+const socket = io('http://localhost:5000');
 import {
     Button,
     Modal,
@@ -53,11 +55,11 @@ export const ChatBot = () => {
     useEffect(() => {
         fetchChatbots()
     }, []);
-    
+
 
     const handleUpdateChatbot = async () => {
         if (!selectedChatbot) return;
-        
+
         setLoading(true);
         try {
             const response = await axios.post(`${import.meta.env.VITE_BASE_URL_BACKEND_SERVER}/update_assistant`, {
@@ -67,16 +69,16 @@ export const ChatBot = () => {
                 model: chatbotDetails.model,
                 tools: chatbotDetails.tools,
             });
-            
+
             const updatedChatbot = {
                 id: response.data.assistant_id,
                 ...chatbotDetails,
             };
-            
+
             setChatbots((prevChatbots) =>
                 prevChatbots.map((bot) => bot.id === updatedChatbot.id ? updatedChatbot : bot)
             );
-            
+
             // Optionally reset any unsaved changes if needed
             setChatbotDetails(updatedChatbot);
         } catch (error) {
@@ -85,7 +87,7 @@ export const ChatBot = () => {
             setLoading(false);
         }
     };
-    
+
 
     const handleOpen = () => setModalOpen(true);
     const handleClose = () => {
@@ -119,7 +121,7 @@ export const ChatBot = () => {
             tools: updatedTools,
         }));
     };
-    
+
 
     const handleModalArgumentChange = (funcIndex, argName, e) => {
         const { name, value } = e.target;
@@ -246,7 +248,7 @@ export const ChatBot = () => {
                 id: response.data.assistant_id,
                 ...modalFormData,
             };
-            setChatbots((prevChatbots) => [newChatbot,...prevChatbots]);
+            setChatbots((prevChatbots) => [newChatbot, ...prevChatbots]);
             setModalFormData(getInitialChatbotDetails()); // Reset the modal form
             handleClose(); // Close the modal after creating a chatbot
         } catch (error) {
@@ -262,7 +264,7 @@ export const ChatBot = () => {
         setChatbotDetails(chatbot);
         //createThread(chatbot.id);
         setChatMessages([]); // Clear chat messages
-        setMessage(""); 
+        setMessage("");
     };
 
     const handleChatbotDetailsChange = (e) => {
@@ -294,7 +296,7 @@ export const ChatBot = () => {
 
     const handleArgumentChange = (funcIndex, oldArgName, e) => {
         const { value } = e.target;  // The new argument name entered by the user
-    
+
         const updatedTools = chatbotDetails.tools.map((tool, i) =>
             i === funcIndex
                 ? {
@@ -320,14 +322,14 @@ export const ChatBot = () => {
                 }
                 : tool
         );
-    
+
         // Update the chatbotDetails state with the new changes
         setChatbotDetails((prevDetails) => ({
             ...prevDetails,
             tools: updatedTools,
         }));
     };
-    
+
 
     const createThread = useCallback(async (assistantId) => {
         try {
@@ -339,59 +341,92 @@ export const ChatBot = () => {
         }
     }, []);
 
-    const handleSendMessage = async () => {
-        if (!message.trim()) return;
-    
-        try {
-            let newThreadId = '';
-            if (!threadId) {
-                newThreadId = await createThread(selectedChatbot.id);
-                //setThreadId(newThreadId);
-                console.log("Thread created => ", newThreadId);
-            }
-    
-            await axios.post(`${import.meta.env.VITE_BASE_URL_BACKEND_SERVER}/chat`, {
-                thread_id: threadId || newThreadId,
-                message,
-                asst_id: selectedChatbot.id,
-            });
-    
-            setChatMessages((prevMessages) => [
-                { role: "user", content: message },...prevMessages
-            ]);
-            setMessage("");
-            await fetchMessages(); // Fetch messages after sending a new one
-        } catch (error) {
-            console.error("Error sending message:", error);
-        }
-    };
-    
-
-    const fetchMessages = useCallback(async () => {
+    const fetchMessages = async () => {
+        console.log("threadId inside fetch ",threadId);
         if (!threadId) return;
         try {
+            console.log("making messages api call");
             const response = await axios.get(`${import.meta.env.VITE_BASE_URL_BACKEND_SERVER}/threads/${threadId}/messages`);
             const messages = response.data.messages.map(msg => ({
                 role: msg.role,
                 content: msg.content.map(part => part.text.value).join(' ')
             }));
+            console.log("inside fetch response ", response);
+            console.log("inside fetch messafes", messages);
+
+            console.log("inside fetch1", chatMessages);
             setChatMessages(messages);
+            console.log("inside fetch2", chatMessages);
+            return true
         } catch (error) {
             console.error("Error fetching messages:", error);
         }
-    }, [threadId]);
-    
+        return false
+    }
+    const handleSendMessage = async () => {
+        if (!message.trim()) return;
 
+        try {
+            let newThreadId = threadId;
+            if (!threadId) {
+                newThreadId = await createThread(selectedChatbot.id);
+                setThreadId(newThreadId);
+                console.log("Thread created => ", newThreadId);
+            }
+
+            const response = await axios.post(`${import.meta.env.VITE_BASE_URL_BACKEND_SERVER}/chat`, {
+                thread_id: newThreadId,
+                message,
+                asst_id: selectedChatbot.id,
+            });
+
+            console.log(response);
+            setMessage("");
+            
+            const fetched = await fetchMessages().then(res => console.log("promise fullfilled ",res));  // Fetch messages after sending a new one
+            console.log("fetch complete ?",fetched);
+        } catch (error) {
+            console.error("Error sending message:", error);
+        }
+    };
+
+    useEffect(() => {
+        if(threadId){
+
+            socket.on('thread_status_change', (data) => {
+              console.log(data);
+              if (data.thread_id === threadId) {
+                // Update UI or fetch new messages based on the thread ID
+                console.log(`Thread ${data.thread_id} status changed to ${data.status}`);
+                alert(`Conversation TakeOver By an Agent!`)
+              }
+            });
+        
+            socket.on(`agent_msg-${threadId}`,(data) => {
+              console.log("Agent => ",data);
+              console.log(chatMessages);
+              setChatMessages((prevMessages) => [...prevMessages,data.message])
+              console.log("chat-messages",chatMessages);
+            })
+        
+        
+            return () => {
+              socket.off('thread_status_change');
+              socket.off(`agent_msg-${threadId}`);
+            };
+        }
+      },[threadId])
     useEffect(() => {
         if (threadId) {
             fetchMessages();
         }
-    }, [threadId, fetchMessages]);
+    }, [threadId]);
     
+
 
     const handleGenerateEmbedCode = () => {
         if (!selectedChatbot) return;
-    
+
         const embedCode = `
         <div id="chatbot-container"></div>
         <script>
@@ -410,18 +445,18 @@ export const ChatBot = () => {
             })();
         </script>
         `;
-        navigator.clipboard.writeText(embedCode).then(function() {
+        navigator.clipboard.writeText(embedCode).then(function () {
             alert('Text copied to clipboard');
-          }).catch(function(error) {
+        }).catch(function (error) {
             alert('Failed to copy text: ', error);
-          });
+        });
     };
-    
+
 
     return (
         <div style={{ display: "flex", height: "100vh" }}>
             {/* Sidebar */}
-            <aside style={{ width: "25%", borderRight: "1px solid #ccc", padding: "20px" }}>
+            <aside style={{ width: "25%", height: "90%", overflow: "scroll", borderRight: "1px solid #ccc", padding: "20px" }}>
                 <Button variant="contained" onClick={handleOpen}>
                     Create Chatbot
                 </Button>
@@ -440,7 +475,7 @@ export const ChatBot = () => {
 
             <div style={{ display: "flex", width: "75%", padding: "20px" }}>
                 {/* Chatbot Details */}
-                <div style={{ width: "50%", paddingRight: "10px", borderRight: "1px solid #ccc" ,height: "100vh", overflowY: "scroll" }}>
+                <div style={{ width: "50%", paddingRight: "10px", borderRight: "1px solid #ccc", height: "90vh", overflowY: "scroll" }}>
                     {selectedChatbot ? (
                         <div>
                             <TextField
@@ -468,66 +503,66 @@ export const ChatBot = () => {
                                 margin="normal"
                             />
                             {chatbotDetails?.tools.map((func, funcIndex) => (
-    <div key={funcIndex} style={{ marginBottom: "20px" }}>
-        {/* Function Name */}
-        <TextField
-            label="Function Name"
-            name="name"
-            value={func.function.name}
-            onChange={(e) => handleFunctionChange(funcIndex, e)}
-            fullWidth
-            margin="normal"
-        />
+                                <div key={funcIndex} style={{ marginBottom: "20px" }}>
+                                    {/* Function Name */}
+                                    <TextField
+                                        label="Function Name"
+                                        name="name"
+                                        value={func.function.name}
+                                        onChange={(e) => handleFunctionChange(funcIndex, e)}
+                                        fullWidth
+                                        margin="normal"
+                                    />
 
-        {/* Function Description */}
-        <TextField
-            label="Function Description"
-            name="description"
-            value={func.function.description}
-            onChange={(e) => handleFunctionChange(funcIndex, e)}
-            fullWidth
-            margin="normal"
-        />
+                                    {/* Function Description */}
+                                    <TextField
+                                        label="Function Description"
+                                        name="description"
+                                        value={func.function.description}
+                                        onChange={(e) => handleFunctionChange(funcIndex, e)}
+                                        fullWidth
+                                        margin="normal"
+                                    />
 
-        {/* Function URL */}
-        <TextField
-            label="Function URL"
-            name="url"
-            value={func.function.url}
-            onChange={(e) => handleFunctionChange(funcIndex, e)}  // Update this function
-            fullWidth
-            margin="normal"
-        />
+                                    {/* Function URL */}
+                                    <TextField
+                                        label="Function URL"
+                                        name="url"
+                                        value={func.function.url}
+                                        onChange={(e) => handleFunctionChange(funcIndex, e)}  // Update this function
+                                        fullWidth
+                                        margin="normal"
+                                    />
 
-        {/* Function Parameters */}
-        {Object.entries(func.function.parameters.properties).map(([argName, argDetails]) => (
-            <div
-                key={argName}
-                style={{ display: "flex", alignItems: "center", marginBottom: "10px" }}
-            >
-                {/* Variable Name */}
-                <TextField
-                    label="Variable Name"
-                    name={argName}
-                    value={argName}
-                    onChange={(e) => handleArgumentChange(funcIndex, argName, e)}
-                    fullWidth
-                    margin="normal"
-                />
+                                    {/* Function Parameters */}
+                                    {Object.entries(func.function.parameters.properties).map(([argName, argDetails]) => (
+                                        <div
+                                            key={argName}
+                                            style={{ display: "flex", alignItems: "center", marginBottom: "10px" }}
+                                        >
+                                            {/* Variable Name */}
+                                            <TextField
+                                                label="Variable Name"
+                                                name={argName}
+                                                value={argName}
+                                                onChange={(e) => handleArgumentChange(funcIndex, argName, e)}
+                                                fullWidth
+                                                margin="normal"
+                                            />
 
-                {/* Variable Description */}
-                <TextField
-                    label="Variable Description"
-                    name="description"
-                    value={argDetails.description}
-                    onChange={(e) => handleArgumentChange(funcIndex, argName, e)}
-                    fullWidth
-                    margin="normal"
-                />
-            </div>
-        ))}
-    </div>
-))}
+                                            {/* Variable Description */}
+                                            <TextField
+                                                label="Variable Description"
+                                                name="description"
+                                                value={argDetails.description}
+                                                onChange={(e) => handleArgumentChange(funcIndex, argName, e)}
+                                                fullWidth
+                                                margin="normal"
+                                            />
+                                        </div>
+                                    ))}
+                                </div>
+                            ))}
 
                             <Button
                                 variant="contained"
@@ -545,7 +580,7 @@ export const ChatBot = () => {
                 </div>
 
                 {/* Chat Section */}
-                <div style={{ width: "50%", paddingLeft: "10px", display: "flex", flexDirection: "column",height: "100vh", overflowY: "scroll"  }}>
+                <div style={{ width: "50%", paddingLeft: "10px", display: "flex", flexDirection: "column", height: "90vh", overflowY: "scroll" }}>
                     <div style={{ flex: 1, overflowY: "auto", border: "1px solid #ccc", padding: "10px" }}>
                         {[...chatMessages].reverse().map((msg, index) => (
                             <div key={index} style={{ textAlign: msg.role === "user" ? "right" : "left" }}>
@@ -558,7 +593,7 @@ export const ChatBot = () => {
                                         borderRadius: "5px",
                                     }}
                                 >
-                                    {msg.content}
+                                    {typeof msg.content === 'string' ? msg.content : msg.content.map((split)=>split.text.value).join(' ')}
                                 </Typography>
                             </div>
                         ))}
@@ -580,13 +615,13 @@ export const ChatBot = () => {
                             Send
                         </Button>
                         <Button
-        variant="contained"
-        color="secondary"
-        onClick={handleGenerateEmbedCode}
-        style={{ marginLeft: "10px" }}
-    >
-        Get Embed Code
-    </Button>           
+                            variant="contained"
+                            color="secondary"
+                            onClick={handleGenerateEmbedCode}
+                            style={{ marginLeft: "10px" }}
+                        >
+                            Get Embed Code
+                        </Button>
                     </div>
                 </div>
             </div>
@@ -622,85 +657,85 @@ export const ChatBot = () => {
                         margin="normal"
                     />
                     {modalFormData.tools.map((func, funcIndex) => (
-    <div key={funcIndex} style={{ marginBottom: "20px" }}>
-        {/* Function Name */}
-        <TextField
-            label="Function Name"
-            name="name"
-            value={func.function.name}
-            onChange={(e) => handleModalFunctionChange(funcIndex, e)}
-            fullWidth
-            margin="normal"
-        />
+                        <div key={funcIndex} style={{ marginBottom: "20px" }}>
+                            {/* Function Name */}
+                            <TextField
+                                label="Function Name"
+                                name="name"
+                                value={func.function.name}
+                                onChange={(e) => handleModalFunctionChange(funcIndex, e)}
+                                fullWidth
+                                margin="normal"
+                            />
 
-        {/* Function Description */}
-        <TextField
-            label="Function Description"
-            name="description"
-            value={func.function.description}
-            onChange={(e) => handleModalFunctionChange(funcIndex, e)}
-            fullWidth
-            margin="normal"
-        />
+                            {/* Function Description */}
+                            <TextField
+                                label="Function Description"
+                                name="description"
+                                value={func.function.description}
+                                onChange={(e) => handleModalFunctionChange(funcIndex, e)}
+                                fullWidth
+                                margin="normal"
+                            />
 
-        {/* Function URL */}
-        <TextField
-            label="Function URL"
-            name="url"
-            value={func.function.url}
-            onChange={(e) => handleModalFunctionChange(funcIndex, e)}  // Update this function
-            fullWidth
-            margin="normal"
-        />
+                            {/* Function URL */}
+                            <TextField
+                                label="Function URL"
+                                name="url"
+                                value={func.function.url}
+                                onChange={(e) => handleModalFunctionChange(funcIndex, e)}  // Update this function
+                                fullWidth
+                                margin="normal"
+                            />
 
-        {/* Function Parameters */}
-        {Object.entries(func.function.parameters.properties).map(([argName, argDetails]) => (
-            <div
-                key={argName}
-                style={{ display: "flex", alignItems: "center", marginBottom: "10px" }}
-            >
-                {/* Variable Name */}
-                <TextField
-                    label="Variable Name"
-                    name={argName}
-                    value={argName}
-                    onChange={(e) => handleModalArgumentChange(funcIndex, argName, e)}
-                    fullWidth
-                    margin="normal"
-                />
+                            {/* Function Parameters */}
+                            {Object.entries(func.function.parameters.properties).map(([argName, argDetails]) => (
+                                <div
+                                    key={argName}
+                                    style={{ display: "flex", alignItems: "center", marginBottom: "10px" }}
+                                >
+                                    {/* Variable Name */}
+                                    <TextField
+                                        label="Variable Name"
+                                        name={argName}
+                                        value={argName}
+                                        onChange={(e) => handleModalArgumentChange(funcIndex, argName, e)}
+                                        fullWidth
+                                        margin="normal"
+                                    />
 
-                {/* Variable Description */}
-                <TextField
-                    label="Variable Description"
-                    name="description"
-                    value={argDetails.description}
-                    onChange={(e) => handleModalArgumentChange(funcIndex, argName, e)}
-                    fullWidth
-                    margin="normal"
-                />
+                                    {/* Variable Description */}
+                                    <TextField
+                                        label="Variable Description"
+                                        name="description"
+                                        value={argDetails.description}
+                                        onChange={(e) => handleModalArgumentChange(funcIndex, argName, e)}
+                                        fullWidth
+                                        margin="normal"
+                                    />
 
-                {/* Remove Argument Button */}
-                <IconButton onClick={() => handleRemoveArgumentFromModal(funcIndex, argName)}>
-                    <Remove />
-                </IconButton>
-            </div>
-        ))}
+                                    {/* Remove Argument Button */}
+                                    <IconButton onClick={() => handleRemoveArgumentFromModal(funcIndex, argName)}>
+                                        <Remove />
+                                    </IconButton>
+                                </div>
+                            ))}
 
-        {/* Add Argument Button */}
-        <Button
-            variant="contained"
-            onClick={() => handleAddArgumentToModal(funcIndex)}
-            style={{ marginTop: "10px" }}
-        >
-            Add Variable
-        </Button>
+                            {/* Add Argument Button */}
+                            <Button
+                                variant="contained"
+                                onClick={() => handleAddArgumentToModal(funcIndex)}
+                                style={{ marginTop: "10px" }}
+                            >
+                                Add Variable
+                            </Button>
 
-        {/* Remove Function Button */}
-        <IconButton onClick={() => handleRemoveFunctionFromModal(funcIndex)}>
-            <Remove />
-        </IconButton>
-    </div>
-))}
+                            {/* Remove Function Button */}
+                            <IconButton onClick={() => handleRemoveFunctionFromModal(funcIndex)}>
+                                <Remove />
+                            </IconButton>
+                        </div>
+                    ))}
 
 
                     <Button variant="contained" onClick={handleAddFunctionToModal} style={{ marginTop: "20px" }}>

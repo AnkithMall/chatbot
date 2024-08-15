@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import io from 'socket.io-client';
+const socket = io('http://localhost:5000');
 import {
   CircularProgress,
   Button,
@@ -18,6 +20,7 @@ export const ChatMessages = () => {
   const [loading, setLoading] = useState(false);
   const [messageText, setMessageText] = useState('');
   const [isFirstMessage, setIsFirstMessage] = useState(true);
+  
 
   // Function to fetch and update threads
   const fetchThreads = async () => {
@@ -44,8 +47,11 @@ export const ChatMessages = () => {
       const response1 = await axios.get(`${import.meta.env.VITE_BASE_URL_BACKEND_SERVER}/get_variables/${threadId}`);
       setMessages(response.data.messages.reverse());
       setSelectedThread(threadId);
-      
-      setVariables(response1.data.variables.variables || []);  // Assuming the API returns a 'variables' object
+      if(response1.data.variables){
+        setVariables(response1.data.variables.variables || []);  // Assuming the API returns a 'variables' object
+      }else{
+        setVariables([])
+      }
     } catch (error) {
       console.error("There was an error fetching the messages!", error);
     }
@@ -56,11 +62,13 @@ export const ChatMessages = () => {
 
     try {
       if (isFirstMessage) {
-        await axios.get(`${import.meta.env.VITE_BASE_URL_BACKEND_SERVER}/agent_takeover/${selectedThread}`);
+        const res = await axios.get(`${import.meta.env.VITE_BASE_URL_BACKEND_SERVER}/agent_takeover/${selectedThread}`);
+        console.log(res);
         setIsFirstMessage(false);
+       
       }
 
-      await axios.post(`${import.meta.env.VITE_BASE_URL_BACKEND_SERVER}/chat`, {
+      await axios.post(`${import.meta.env.VITE_BASE_URL_BACKEND_SERVER}/chat/agent`, {
         thread_id: selectedThread,
         message: messageText,
         asst_id: "",  // Replace with the actual assistant ID if needed
@@ -68,7 +76,7 @@ export const ChatMessages = () => {
 
       setMessages(prevMessages => [
         ...prevMessages,
-        { role: "user", content: [{ text: { value: messageText } }] }
+        { role: "agent", content: [{ text: { value: messageText } }] }
       ]);
 
       // Clear input field
@@ -77,6 +85,28 @@ export const ChatMessages = () => {
       console.error("There was an error sending the message!", error);
     }
   };
+  useEffect(() => {
+    socket.on('thread_status_change', (data) => {
+      console.log(data);
+      if (data.thread_id === selectedThread) {
+        // Update UI or fetch new messages based on the thread ID
+        console.log(`Thread ${data.thread_id} status changed to ${data.status}`);
+        alert(`Conversation TakeOver SuccessFull!`)
+      }
+    });
+
+    socket.on(`lead_msg-${selectedThread}`,(data) => {
+      console.log("Lead => ",data);
+      setMessages((prevMessages) => [...prevMessages,data.message])
+      console.log("messages",messages);
+    })
+
+
+    return () => {
+      socket.off('thread_status_change');
+      socket.off(`lead_msg-${selectedThread}`);
+    };
+  },[selectedThread])
 
   useEffect(()=>{
     fetchThreads();
@@ -101,26 +131,26 @@ export const ChatMessages = () => {
       console.error("Error with SSE connection:", error);
       eventSource.close();
       // Optionally attempt to reconnect after a delay
-  setTimeout(() => {
-    eventSource = new EventSource(`${import.meta.env.VITE_BASE_URL_BACKEND_SERVER}/events/threads`);
-  }, 5000); // Reconnect after 5 seconds
+  // setTimeout(() => {
+  //   eventSource = new EventSource(`${import.meta.env.VITE_BASE_URL_BACKEND_SERVER}/events/threads`);
+  // }, 5000); // Reconnect after 5 seconds
     };
 
     return () => {
       eventSource.close();  // Clean up when component unmounts
     };
   },[])
-  useEffect(() => {
-    const messagePollingInterval = setInterval(() => {
-      if (selectedThread) {
-        fetchMessages(selectedThread);
-      }
-    }, 5000); 
+  // useEffect(() => {
+  //   const messagePollingInterval = setInterval(() => {
+  //     if (selectedThread) {
+  //       fetchMessages(selectedThread);
+  //     }
+  //   }, 5000); 
 
-    return () => {
-      clearInterval(messagePollingInterval); // Clear message polling interval on component unmount
-    };
-  }, [selectedThread]); // Re-run polling when selectedThread changes
+  //   return () => {
+  //     clearInterval(messagePollingInterval); // Clear message polling interval on component unmount
+  //   };
+  // }, [selectedThread]); // Re-run polling when selectedThread changes
 
   return (
     <div style={{ display: 'flex', height: '100vh' }}>
@@ -130,7 +160,7 @@ export const ChatMessages = () => {
         {loading ? (
           <CircularProgress />
         ) : (
-          <List>{console.log("thread => ",threads)}
+          <List>
             {threads.filter(item => item.status === "active" || item.status === "agent_takeover").map(thread => (
               <ListItem button key={thread.id} onClick={() => fetchMessages(thread.id)}>
                 <ListItemText primary={thread.id} />
@@ -148,7 +178,7 @@ export const ChatMessages = () => {
             <div key={index} style={{ marginBottom: '10px' }}>
               <Typography variant="body2" color={message.role === "user" ? "primary" : "textSecondary"}>
                 {message.content.map((contentItem, i) => (
-                  <p key={i}>{contentItem.text.value}</p>
+                  <span key={i}>{contentItem.text.value}</span>
                 ))}
               </Typography>
             </div>

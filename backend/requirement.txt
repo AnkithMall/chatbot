@@ -6,3 +6,4 @@ gunicorn
 flask_cors
 pymongo
 flask-sse
+flask_socketio

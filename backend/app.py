@@ -7,10 +7,12 @@ from dotenv import load_dotenv
 from db_helper import register_thread,get_threads,fetch_variables,get_thread_status,add_message_to_thread,fetch_messages_by_thread_id,stream_threads
 load_dotenv()
 from datetime import datetime
+from flask_socketio import SocketIO, emit
 
 client = openai.OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 app = Flask(__name__)
 CORS(app)
+socketio = SocketIO(app, cors_allowed_origins="*")
 
 default_asst = "asst_fN72dShbo6g7z5okrGfO5eDB"
 
@@ -82,12 +84,40 @@ def chat():
         new_message = {
             "assistant_id": "agent-default",
             "content": [{"text": {"annotations": [], "value": message}, "type": "text"}],
+            "role": "user",
+            "created_at": int(datetime.now().timestamp())  # You can replace this with the current timestamp if needed
+        }
+        # Add message to the DB message list
+        add_message_result = add_message_to_thread(thread_id, new_message)
+        socketio.emit(f"lead_msg-{thread_id}",{"thread_id":thread_id,"message":new_message})
+        return add_message_result, 200
+
+@app.route('/chat/agent', methods=['POST'])
+def agent_chat():
+    data = request.json
+    if not data:
+        return jsonify({"error": "Invalid request"}), 400
+
+    thread_id = data.get("thread_id")
+    message = data.get("message")
+    asst_id = data.get("asst_id")
+    if not thread_id or not message:
+        return jsonify({"error": "Invalid request body"}), 400
+    thread_status = get_thread_status(thread_id)
+    
+    if thread_status['status'] == "agent_takeover":
+        new_message = {
+            "assistant_id": "agent-default",
+            "content": [{"text": {"annotations": [], "value": message}, "type": "text"}],
             "role": "agent",
             "created_at": int(datetime.now().timestamp())  # You can replace this with the current timestamp if needed
         }
         # Add message to the DB message list
         add_message_result = add_message_to_thread(thread_id, new_message)
+        socketio.emit(f"agent_msg-{thread_id}",{"thread_id":thread_id,"message":new_message})
         return add_message_result, 200
+    return 404
+
 
 @app.route('/chatbots', methods=['GET'])
 def chatbots():
@@ -105,12 +135,13 @@ def get_messages(thread_id):
     
     if not thread_status['success']:
         return jsonify({"error": thread_status['message']}), 404
-    #print(f"thread_status => {thread_status['status']}")
+    print(f"thread_status => {thread_status['status']}")
     if thread_status['status'] == "active":
         # Fetch messages directly from the chat client or database for active threads
         try:
             messages = object_to_dict(client.beta.threads.messages.list(thread_id).data)
-            #print(f"messages => {messages}")
+
+            print(f"messages => {messages}")
             return jsonify({"messages": messages}), 200
         except Exception as e:
             return jsonify({"error": str(e)}), 500
@@ -150,7 +181,26 @@ def get_variables(thread_id):
 
 @app.route('/agent_takeover/<thread_id>',methods=['GET'])
 def agent_takeover(thread_id):
-    return {"message":handle_thread_cancel(thread_id)},200
+    #print(f"takeover the thread => {thread_id}")
+    # Notify clients about the thread status change
+    takeover = handle_thread_cancel(thread_id)
+    print(f"takeover {takeover}")
+    if isinstance(takeover, dict) and takeover.get('deleted'):
+        socketio.emit('thread_status_change', {'thread_id': thread_id, 'status': 'agent_takeover'})
+        return {"message": "Agent takeover successful."}, 200
+    if isinstance(takeover, dict) and takeover.get('message') == "thread already cancelled":
+        return takeover, 200
+    return {"message": "Agent takeover failed."},500
+
+@socketio.on('connect')
+def handle_connect():
+    print("Client connected")
+
+@socketio.on('disconnect')
+def handle_disconnect():
+    print("Client disconnected")
+
+
 
 @app.route('/events/threads')
 def sse():
@@ -158,4 +208,5 @@ def sse():
 
 
 if __name__ == '__main__':
-    app.run(debug=True,threaded=True)
+    #app.run(debug=True,threaded=True)
+    socketio.run(app, debug=True)

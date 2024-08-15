@@ -15,19 +15,35 @@ variable_collection = db['variable_collection']
 message_collection = db['message_collection']
 
 def stream_threads():
-        # Tail a MongoDB collection for changes using `change_stream`
-        with threads_collection.watch() as stream:
-            for change in stream:
-                print(f"stream data => {change}")
-                change["fullDocument"].pop("_id")
-                event_data = {"operationType":change["operationType"],"fullDocument":change["fullDocument"]}
-                yield f'data: {json.dumps(event_data)}\n\n'  # Send data as an SSE event
+    # Tail a MongoDB collection for changes using `change_stream`
+    with threads_collection.watch() as stream:
+        for change in stream:
+            print(f"stream data => {change}")
+            
+            if 'fullDocument' in change:
+                # Remove '_id' from the document if it exists
+                change['fullDocument'].pop('_id', None)
+                
+                # Prepare event data with fullDocument
+                event_data = {
+                    "operationType": change["operationType"],
+                    "fullDocument": change["fullDocument"]
+                }
+            else:
+                # Prepare event data without fullDocument
+                event_data = {
+                    "operationType": change["operationType"],
+                    "fullDocument": None  # Or handle this differently if necessary
+                }
+            
+            yield f'data: {json.dumps(event_data)}\n\n'  # Send data as an SSE event
+
 
 def transfer_message_to_db(thread_id,messages):
     record = { "thread_id":thread_id,"messages":object_to_dict(messages.data)}
     try:
         result = message_collection.update_one(
-            {},
+            {"thread_id": thread_id},
             {"$set": record},
             upsert=True
         )
