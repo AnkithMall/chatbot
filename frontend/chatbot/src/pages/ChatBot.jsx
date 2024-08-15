@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import io from 'socket.io-client';
-const socket = io('http://localhost:5000');
+const socket = io(import.meta.env.VITE_BASE_URL_BACKEND_SERVER);
+
 import {
     Button,
     Modal,
@@ -391,6 +392,7 @@ export const ChatBot = () => {
     };
 
     useEffect(() => {
+        
         if(threadId){
 
             socket.on('thread_status_change', (data) => {
