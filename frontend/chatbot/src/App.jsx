@@ -1,15 +1,19 @@
 import { ChatBot } from "./pages/ChatBot";
 import { ChatMessages } from "./pages/ChatMessages";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import {  Routes, Route, Link } from "react-router-dom";
 
 const App = () => {
   return <>
-    <BrowserRouter>
+      <nav>
+        <ul>
+          <li><Link to="/">Chat Bots</Link></li>
+          <li><Link to="/show_chats" >Agent Page</Link></li>
+        </ul>
+      </nav>
       <Routes>
         <Route path="/show_chats" element={<ChatMessages />} />
         <Route path="/" element={<ChatBot />} />
       </Routes>
-    </BrowserRouter>
   </>
 }
 
