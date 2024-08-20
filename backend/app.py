@@ -4,7 +4,7 @@ from helper_function import create_assistant_helper, create_message, run_thread,
 import openai
 import os
 from dotenv import load_dotenv
-from db_helper import register_thread,get_threads,fetch_variables,get_thread_status,add_message_to_thread,fetch_messages_by_thread_id,stream_threads
+from db_helper import register_thread,get_threads,fetch_variables,get_thread_status,add_message_to_thread,fetch_messages_by_thread_id,stream_threads,change_thread_status
 load_dotenv()
 from datetime import datetime
 from flask_socketio import SocketIO, emit
@@ -15,6 +15,21 @@ CORS(app)
 socketio = SocketIO(app, cors_allowed_origins="*")
 
 default_asst = "asst_fN72dShbo6g7z5okrGfO5eDB"
+
+@app.route('/terminate_chat/<thread_id>/<end_code>', methods=['POST'])
+def terminate_chat(thread_id,end_code):
+    status = ""
+    if end_code == 1 :
+        status = "inactive_chat"
+    elif end_code == 2 :
+        status = "window_closed"
+    elif end_code == 3 :
+        status = "network_error"
+    elif end_code == 4 :
+        status = "ended_by_assistant"
+
+    return change_thread_status(thread_id,status),200
+
 
 @app.route('/create_thread', methods=['POST'])
 def create_thread():

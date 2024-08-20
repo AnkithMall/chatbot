@@ -427,8 +427,8 @@ export const ChatBot = () => {
     //         fetchMessages();
     //     }
     // }, [threadId]);
+     
     
-
 
     const handleGenerateEmbedCode = () => {
         if (!selectedChatbot) return;
@@ -471,7 +471,10 @@ export const ChatBot = () => {
                 ) : (
                     <List>
                         {chatbots.length > 0 ? chatbots.map((chatbot) => (
-                            <ListItem button key={chatbot.id} onClick={() => handleSelectChatbot(chatbot)}>
+                            <ListItem button key={chatbot.id} style={{
+                                backgroundColor: chatbot.id === selectedChatbot?.id ? '#007bff' : 'transparent', // Background color when selected
+                                color: chatbot.id === selectedChatbot?.id ? '#fff' : '#000' // Text color when selected
+                              }} onClick={() => handleSelectChatbot(chatbot)}>
                                 <ListItemText primary={chatbot.name} secondary={`ID: ${chatbot.id}`} />
                             </ListItem>
                         )) : <Typography>No chatbots available</Typography>}
