@@ -39,6 +39,7 @@ def stream_threads():
             yield f'data: {json.dumps(event_data)}\n\n'  # Send data as an SSE event
 
 
+
 def transfer_message_to_db(thread_id,messages):
     record = { "thread_id":thread_id,"messages":object_to_dict(messages.data)}
     try:

@@ -79,6 +79,7 @@ def chat():
         wait_for_run_completion(thread_id, run_detail.id)
         #db_update=register_thread(thread_id)
         #print(f"db update result => {db_update}")
+        socketio.emit(f"lead_chats-{thread_id}",{"thread_id":thread_id})
         return {"run_id": run_detail.id}, 200
     elif thread_status['status'] == "agent_takeover":
         new_message = {

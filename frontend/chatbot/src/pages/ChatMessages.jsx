@@ -101,11 +101,15 @@ export const ChatMessages = () => {
       setMessages((prevMessages) => [...prevMessages,data.message])
       console.log("messages",messages);
     })
-
+    socket.on(`lead_chats-${selectedThread}`,(data)=>{
+      console.log("lead chat update ",data);
+      fetchMessages(selectedThread)
+    })
 
     return () => {
       socket.off('thread_status_change');
       socket.off(`lead_msg-${selectedThread}`);
+      socket.off(`lead_chats-${selectedThread}`);
     };
   },[selectedThread])
 
@@ -176,8 +180,15 @@ export const ChatMessages = () => {
         <Typography variant="h6">Chat - {selectedThread} </Typography>
         <div style={{ flex: 1, overflowY: 'auto', border: '1px solid #ccc', padding: '10px' }}>
           {messages.length > 0 ? messages.map((message, index) => (
-            <div key={index} style={{ marginBottom: '10px' }}>
-              <Typography variant="body2" color={message.role === "user" ? "primary" : "textSecondary"}>
+            <div key={index} style={{ marginBottom: '10px' , textAlign:message.role === "agent" ? "right" : "left",
+            width:"100%"}}>
+              <Typography  variant="body1"
+                                    style={{
+                                        display: "inline-block",
+                                        backgroundColor: message.role === "user" ? "#e0f7fa" : "#fff9c4",
+                                        padding: "5px",
+                                        borderRadius: "5px"
+                                    }}>
                 {message.content.map((contentItem, i) => (
                   <span key={i}>{contentItem.text.value}</span>
                 ))}

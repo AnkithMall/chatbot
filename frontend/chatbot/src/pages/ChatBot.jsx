@@ -342,12 +342,12 @@ export const ChatBot = () => {
         }
     }, []);
 
-    const fetchMessages = async () => {
-        console.log("threadId inside fetch ",threadId);
-        if (!threadId) return;
+    const fetchMessages = async (thread_id=threadId) => {
+        console.log("threadId inside fetch ",thread_id);
+        if (!thread_id) return;
         try {
             console.log("making messages api call");
-            const response = await axios.get(`${import.meta.env.VITE_BASE_URL_BACKEND_SERVER}/threads/${threadId}/messages`);
+            const response = await axios.get(`${import.meta.env.VITE_BASE_URL_BACKEND_SERVER}/threads/${thread_id}/messages`);
             const messages = response.data.messages.map(msg => ({
                 role: msg.role,
                 content: msg.content.map(part => part.text.value).join(' ')
@@ -382,10 +382,14 @@ export const ChatBot = () => {
             });
 
             console.log(response);
-            setMessage("");
-            
-            const fetched = await fetchMessages().then(res => console.log("promise fullfilled ",res));  // Fetch messages after sending a new one
-            console.log("fetch complete ?",fetched);
+            if(response.status===200){
+                setMessage("");
+                
+                const fetched = await fetchMessages(newThreadId).then(res => console.log("promise fullfilled ",res));  // Fetch messages after sending a new one
+                console.log("fetch complete ?",fetched);
+            }else{
+                alert(`Couldn't send the message to Server. Status code ${response.status}`)
+            }
         } catch (error) {
             console.error("Error sending message:", error);
         }
@@ -407,7 +411,7 @@ export const ChatBot = () => {
             socket.on(`agent_msg-${threadId}`,(data) => {
               console.log("Agent => ",data);
               console.log(chatMessages);
-              setChatMessages((prevMessages) => [...prevMessages,data.message])
+              setChatMessages((prevMessages) => [data.message,...prevMessages])
               console.log("chat-messages",chatMessages);
             })
         
@@ -418,11 +422,11 @@ export const ChatBot = () => {
             };
         }
       },[threadId])
-    useEffect(() => {
-        if (threadId) {
-            fetchMessages();
-        }
-    }, [threadId]);
+    // useEffect(() => {
+    //     if (threadId) {
+    //         fetchMessages();
+    //     }
+    // }, [threadId]);
     
 
 
