@@ -7,7 +7,7 @@ const socket = io(import.meta.env.VITE_BASE_URL_BACKEND_SERVER);
 export const useMessages = (selectedThread) => {
   const [messages, setMessages] = useState([]);
   const [variables, setVariables] = useState([]);
-
+  const [isFirstMessage, setIsFirstMessage] = useState(true);
   const fetchMessages = async (threadId) => {
     try {
       const response = await axios.get(`${import.meta.env.VITE_BASE_URL_BACKEND_SERVER}/threads/${threadId}/messages`);
@@ -19,16 +19,24 @@ export const useMessages = (selectedThread) => {
       console.error("Error fetching messages:", error);
     }
   };
+  useEffect(()=>{setIsFirstMessage(true)},[selectedThread])
 
   const sendMessage = async (messageText, asstId = "") => {
     if (!selectedThread || !messageText.trim()) return;
     
     try {
-      await axios.post(`${import.meta.env.VITE_BASE_URL_BACKEND_SERVER}/chat/agent`, {
+      if (isFirstMessage) {
+        const res = await axios.get(`${import.meta.env.VITE_BASE_URL_BACKEND_SERVER}/agent_takeover/${selectedThread}`);
+        console.log(res);
+        setIsFirstMessage(false);
+       
+      }
+      const res = await axios.post(`${import.meta.env.VITE_BASE_URL_BACKEND_SERVER}/chat/agent`, {
         thread_id: selectedThread,
         message: messageText,
         asst_id: asstId,
       });
+      console.log(res);
       setMessages(prevMessages => [
         ...prevMessages,
         { role: "agent", content: [{ text: { value: messageText } }] }
@@ -50,10 +58,14 @@ export const useMessages = (selectedThread) => {
     socket.on(`lead_msg-${selectedThread}`, (data) => {
       setMessages((prevMessages) => [...prevMessages, data.message]);
     });
-
+    socket.on(`lead_chats-${selectedThread}`,(data)=>{
+      console.log("lead chat update ",data);
+      fetchMessages(selectedThread)
+    })
     return () => {
       socket.off('thread_status_change');
       socket.off(`lead_msg-${selectedThread}`);
+      socket.off(`lead_chats-${selectedThread}`);
     };
   }, [selectedThread]);
 

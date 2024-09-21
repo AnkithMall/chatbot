@@ -15,20 +15,15 @@ CORS(app)
 socketio = SocketIO(app, cors_allowed_origins="*")
 
 default_asst = "asst_fN72dShbo6g7z5okrGfO5eDB"
+statuses = ["agent_takeover", "inactive_chat", "window_closed"]
 
-@app.route('/terminate_chat/<thread_id>/<end_code>', methods=['POST'])
-def terminate_chat(thread_id,end_code):
-    status = ""
-    if end_code == 1 :
-        status = "inactive_chat"
-    elif end_code == 2 :
-        status = "window_closed"
-    elif end_code == 3 :
-        status = "network_error"
-    elif end_code == 4 :
-        status = "ended_by_assistant"
+@app.route('/end_chat', methods=['POST'])
+def terminate_chat():
+    data = request.json
+    reason = data["reason"]
+    thread_id = data["thread_id"]
 
-    return change_thread_status(thread_id,status),200
+    return handle_thread_cancel(thread_id,reason),200
 
 
 @app.route('/create_thread', methods=['POST'])
@@ -107,6 +102,7 @@ def chat():
         add_message_result = add_message_to_thread(thread_id, new_message)
         socketio.emit(f"lead_msg-{thread_id}",{"thread_id":thread_id,"message":new_message})
         return add_message_result, 200
+    return { "message":f"Thread Status : {thread_status['status']}"},400
 
 @app.route('/chat/agent', methods=['POST'])
 def agent_chat():
@@ -120,7 +116,7 @@ def agent_chat():
     if not thread_id or not message:
         return jsonify({"error": "Invalid request body"}), 400
     thread_status = get_thread_status(thread_id)
-    
+    print(f"thread status = {thread_status}")
     if thread_status['status'] == "agent_takeover":
         new_message = {
             "assistant_id": "agent-default",
@@ -132,7 +128,7 @@ def agent_chat():
         add_message_result = add_message_to_thread(thread_id, new_message)
         socketio.emit(f"agent_msg-{thread_id}",{"thread_id":thread_id,"message":new_message})
         return add_message_result, 200
-    return 404
+    return {},404
 
 
 @app.route('/chatbots', methods=['GET'])
@@ -152,6 +148,7 @@ def get_messages(thread_id):
     if not thread_status['success']:
         return jsonify({"error": thread_status['message']}), 404
     print(f"thread_status => {thread_status['status']}")
+    
     if thread_status['status'] == "active":
         # Fetch messages directly from the chat client or database for active threads
         try:
@@ -162,7 +159,7 @@ def get_messages(thread_id):
         except Exception as e:
             return jsonify({"error": str(e)}), 500
 
-    elif thread_status['status'] == "agent_takeover":
+    elif thread_status['status'] in statuses:
         # Fetch messages from the database for threads with agent takeover status
         messages = fetch_messages_by_thread_id(thread_id)
         if messages['success']:
@@ -199,7 +196,7 @@ def get_variables(thread_id):
 def agent_takeover(thread_id):
     #print(f"takeover the thread => {thread_id}")
     # Notify clients about the thread status change
-    takeover = handle_thread_cancel(thread_id)
+    takeover = handle_thread_cancel(thread_id,"agent_takeover")
     print(f"takeover {takeover}")
     if isinstance(takeover, dict) and takeover.get('deleted'):
         socketio.emit('thread_status_change', {'thread_id': thread_id, 'status': 'agent_takeover'})

@@ -66,4 +66,12 @@ Content-Type: application/json
     "model":"gpt-4o"
 }
 
+###
+POST http://127.0.0.1:5000/end_chat
+Content-Type: application/json
+
+{
+    "thread_id":"thread_P3mw1GW9TeOdoLeICVqo3buu",
+    "reason":"inactive_chat"
+}
 

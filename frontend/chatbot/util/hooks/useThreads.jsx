@@ -20,6 +20,25 @@ export const useThreads = () => {
 
   useEffect(() => {
     fetchThreads();
+
+    // Set up SSE connection
+    const eventSource = new EventSource(`${import.meta.env.VITE_BASE_URL_BACKEND_SERVER}/events/threads`);
+
+    eventSource.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      //console.log("event data ",updatedThread);
+      data.operationType === "insert"&&setThreads((prevThreads)=> [data.fullDocument,...prevThreads])
+      data.fullDocument.id&&alert(`New Thread Added => ${data.fullDocument.id}`);
+    };
+
+    eventSource.onerror = (error) => {
+      console.error('SSE connection error:', error);
+      eventSource.close();
+    };
+
+    return () => {
+      eventSource.close(); // Clean up the event source when the component unmounts
+    };
   }, []);
 
   return { threads, loading, fetchThreads };

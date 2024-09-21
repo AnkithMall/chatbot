@@ -190,7 +190,7 @@ def wait_for_run_completion(thread_id, run_id):
             break
     return response
 
-def handle_thread_cancel(thread_id):
+def handle_thread_cancel(thread_id,reason):
     thread_status = get_thread_status(thread_id)
     if not thread_status['success']:
         return jsonify({"error": thread_status['message']}), 404
@@ -200,14 +200,14 @@ def handle_thread_cancel(thread_id):
     
         transfer=transfer_message_to_db(thread_id,messages)
         if transfer['success']:
-            thread_staus_change = change_thread_status(thread_id,"agent_takeover")
+            thread_staus_change = change_thread_status(thread_id,reason)
             if thread_staus_change['success']:
                 result = client.beta.threads.delete(thread_id)
                 print(f"delete thread object => {result}")
                 return object_to_dict(result)
             return thread_staus_change
         return transfer
-    elif thread_status['status'] == "agent_takeover":
+    elif thread_status['status'] != "active":
         return {"message":"thread already cancelled"}
         
     return {"message":"thread cancel failed!"}
